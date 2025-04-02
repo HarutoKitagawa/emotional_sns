@@ -1,0 +1,174 @@
+openapi: 3.0.0
+info:
+  title: EmotionSNS API
+  version: 1.0.0
+
+servers:
+  - url: https://api.emotionsns.example.com
+
+paths:
+  /posts:
+    post:
+      summary: Create a new post with emotion analysis
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                content:
+                  type: string
+      responses:
+        '201':
+          description: Post created successfully
+          content:
+            application/json:
+              example:
+                postId: "abc123"
+                status: "created"
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              example:
+                error: "Missing userId or content"
+
+  /posts/{postId}:
+    get:
+      summary: Get post details with emotion tag
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Post details returned
+          content:
+            application/json:
+              example:
+                postId: "abc123"
+                userId: "user123"
+                content: "今日の気分は晴れですぴょん"
+                emotionTag: "joy"
+        '404':
+          description: Post not found
+          content:
+            application/json:
+              example:
+                error: "Post not found"
+
+  /posts/{postId}/reactions:
+    post:
+      summary: React to a post
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                type:
+                  type: string
+                  enum: [like, love, cry, angry, wow]
+      responses:
+        '201':
+          description: Reaction added
+          content:
+            application/json:
+              example:
+                status: "reaction added"
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              example:
+                error: "Invalid reaction type"
+
+  /posts/{postId}/replies:
+    post:
+      summary: Reply to a post
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                content:
+                  type: string
+      responses:
+        '201':
+          description: Reply created
+          content:
+            application/json:
+              example:
+                replyId: "r123"
+                status: "reply created"
+
+  /posts/{postId}/impact:
+    get:
+      summary: Get emotional impact report (1st to 3rd degree)
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Emotional impact report
+          content:
+            application/json:
+              example:
+                reachedUsers: 120
+                joyCount: 45
+                sadnessCount: 12
+                spreadDepth: 3
+        '404':
+          description: Post not found or no impact data yet
+          content:
+            application/json:
+              example:
+                error: "No impact data available"
+
+  /emotion-tags:
+    get:
+      summary: Get emotion tags ranked by relevance for a given post
+      parameters:
+        - name: postId
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Emotion tags returned
+          content:
+            application/json:
+              example:
+                emotionTags:
+                  - type: joy
+                    score: 0.85
+                  - type: surprise
+                    score: 0.6

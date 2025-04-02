@@ -1,0 +1,47 @@
+# === Node.js ===
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.env
+.env.*.local
+.vscode/
+dist/
+coverage/
+.cache/
+.nyc_output/
+*.local
+
+# === frontend build artifacts ===
+frontend/build/
+frontend/dist/
+frontend/.next/
+frontend/.vite/
+frontend/.nuxt/
+
+# === backend build artifacts ===
+backend/build/
+backend/dist/
+backend/.env
+backend/.env.local
+
+# === Docker ===
+*.log
+docker-compose.override.yml
+
+# === OS-specific ===
+.DS_Store
+Thumbs.db
+
+# === IDEs ===
+.idea/
+*.swp
+*.swo
+
+# === Misc ===
+*.tgz
+*.zip
+*.bak
+*.tmp
+*.pid
