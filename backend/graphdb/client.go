@@ -31,6 +31,18 @@ type EmotionTagOnly struct {
 	Type string `json:"type"`
 }
 
+type InfluenceUser struct {
+	UserID        string `json:"userId"`
+	Type          string `json:"type"`
+	ThroughPostID string `json:"throughPostId,omitempty"`
+}
+
+type PostInfluence struct {
+	FirstDegree  []InfluenceUser `json:"firstDegree"`
+	SecondDegree []InfluenceUser `json:"secondDegree"`
+	ThirdDegree  []InfluenceUser `json:"thirdDegree"`
+}
+
 type GraphDbClient interface {
 	CreatePostWithEmotions(userId, postId, content string, emotions []EmotionTag) error
 	GetPostWithEmotions(postId string) (userId, content, createdAt string, emotions []EmotionTag, err error)
@@ -45,5 +57,6 @@ type GraphDbClient interface {
 	GetPostContent(postId string) (content string, err error)
 	GetInfluencedPostsLast24Hours(userId string) ([]InfluencedPost, error)
 	AddSameTopicRelation(fromPostID, toPostID string) error
+	GetPostInfluence(postId string) (PostInfluence, error)
 	Close() error
 }

@@ -72,6 +72,20 @@ type FollowResponse struct {
 	Status string `json:"status"`
 }
 
+type PostInfluenceResponse struct {
+	PostID       string                  `json:"postId"`
+	FirstDegree  []graphdb.InfluenceUser `json:"firstDegree"`
+	SecondDegree []graphdb.InfluenceUser `json:"secondDegree"`
+	ThirdDegree  []graphdb.InfluenceUser `json:"thirdDegree"`
+	Summary      PostInfluenceSummary    `json:"summary"`
+}
+
+type PostInfluenceSummary struct {
+	TotalUsers int            `json:"totalUsers"`
+	ByType     map[string]int `json:"byType"`
+	ByDegree   map[string]int `json:"byDegree"`
+}
+
 func main() {
 	// Initialize Neo4j client
 	client, err := graphdb.NewNeo4jClient(os.Getenv("NEO4J_URI"), "neo4j", "password")
@@ -93,6 +107,8 @@ func main() {
 			}
 		case strings.HasSuffix(r.URL.Path, "/reactions"):
 			handleAddReaction(client)(w, r)
+		case strings.HasSuffix(r.URL.Path, "/influence"):
+			handleGetPostInfluence(client)(w, r)
 		default:
 			handleGetPost(client)(w, r)
 		}
@@ -459,4 +475,58 @@ func analyzeTopicSimilarity(content1, content2 string) (bool, error) {
 
 	// 確信度が0.7以上の場合に同じトピックと判断（閾値は調整可能）
 	return result.IsSameTopic && result.Confidence >= 0.7, nil
+}
+
+func handleGetPostInfluence(client graphdb.GraphDbClient) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		postId := strings.TrimPrefix(r.URL.Path, "/posts/")
+		postId = strings.TrimSuffix(postId, "/influence")
+
+		influence, err := client.GetPostInfluence(postId)
+		if err != nil {
+			log.Printf("Failed to get post influence: %v", err)
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
+
+		// 集計情報を作成
+		totalUsers := len(influence.FirstDegree) + len(influence.SecondDegree) + len(influence.ThirdDegree)
+		byType := make(map[string]int)
+		byDegree := map[string]int{
+			"first":  len(influence.FirstDegree),
+			"second": len(influence.SecondDegree),
+			"third":  len(influence.ThirdDegree),
+		}
+
+		// 影響タイプごとの集計
+		for _, user := range influence.FirstDegree {
+			byType[user.Type]++
+		}
+		for _, user := range influence.SecondDegree {
+			byType[user.Type]++
+		}
+		for _, user := range influence.ThirdDegree {
+			byType[user.Type]++
+		}
+
+		response := PostInfluenceResponse{
+			PostID:       postId,
+			FirstDegree:  influence.FirstDegree,
+			SecondDegree: influence.SecondDegree,
+			ThirdDegree:  influence.ThirdDegree,
+			Summary: PostInfluenceSummary{
+				TotalUsers: totalUsers,
+				ByType:     byType,
+				ByDegree:   byDegree,
+			},
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
+	}
 }
