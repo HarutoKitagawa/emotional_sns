@@ -1,51 +1,28 @@
 'use client';
-import { User } from '../types/user';
-import { useFollowUser, useUserSession } from '../features/user/hooks';
-import { getEmotionColor } from '../lib/utils';
 
-// Mock data for demonstration purposes
-const MOCK_USER: User = {
-  id: 'user1',
-  username: 'yamada_taro',
-  displayName: '山田太郎',
-  avatarUrl: 'https://i.pravatar.cc/150?img=1',
-  bio: '東京在住のエンジニア。趣味は写真と旅行。感情分析に興味があります。',
-  followersCount: 120,
-  followingCount: 85,
-  emotionalProfile: {
-    dominantEmotions: ['joy', 'surprise'],
-    emotionalRange: 75,
-  },
-};
+import { User } from '../types/user';
+import { useUser, useFollowUser, useUserSession } from '../features/user/hooks';
+import { getEmotionColor } from '../lib/utils';
 
 interface ProfileHeaderProps {
   userId: string;
 }
 
 export default function ProfileHeader({ userId }: ProfileHeaderProps) {
-  // In a real app, we would use these hooks
-  // const { data: user, error, isLoading } = useUser(userId);
-  // const { user: currentUser, isLoggedIn } = useUserSession();
-  // const { isFollowing, follow, unfollow, isLoading: isFollowLoading } = useFollowUser(userId);
-  
-  // For now, we'll use mock data
-  const user = MOCK_USER;
-  const isLoading = false;
-  const error = null;
-  const isFollowing = false;
-  const isFollowLoading = false;
-  const isCurrentUser = false;
-  
+  const { data: user, error, isLoading } = useUser(userId);
+  const { user: currentUser } = useUserSession();
+  const { isFollowing, follow, unfollow, isLoading: isFollowLoading } = useFollowUser(userId);
+  const isCurrentUser = currentUser?.id === userId;
+
   const handleFollowClick = async () => {
-    // In a real app, we would call this
-    // if (isFollowing) {
-    //   await unfollow();
-    // } else {
-    //   await follow();
-    // }
-    console.log(`${isFollowing ? 'Unfollowed' : 'Followed'} user: ${userId}`);
+    if (isFollowLoading) return;
+    if (isFollowing) {
+      await unfollow();
+    } else {
+      await follow();
+    }
   };
-  
+
   if (isLoading) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 animate-pulse">
@@ -62,7 +39,7 @@ export default function ProfileHeader({ userId }: ProfileHeaderProps) {
       </div>
     );
   }
-  
+
   if (error || !user) {
     return (
       <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-red-600 dark:text-red-400">
@@ -70,7 +47,7 @@ export default function ProfileHeader({ userId }: ProfileHeaderProps) {
       </div>
     );
   }
-  
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
       <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
@@ -88,12 +65,12 @@ export default function ProfileHeader({ userId }: ProfileHeaderProps) {
               </div>
             )}
           </div>
-          
+
           {user.emotionalProfile && (
-            <div 
+            <div
               className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full border-2 border-white dark:border-gray-800 flex items-center justify-center"
-              style={{ 
-                backgroundColor: getEmotionColor(user.emotionalProfile.dominantEmotions[0] as any) 
+              style={{
+                backgroundColor: getEmotionColor(user.emotionalProfile.dominantEmotions[0] as any),
               }}
               title={`Dominant emotion: ${user.emotionalProfile.dominantEmotions[0]}`}
             >
@@ -105,15 +82,13 @@ export default function ProfileHeader({ userId }: ProfileHeaderProps) {
             </div>
           )}
         </div>
-        
+
         <div className="flex-1 text-center sm:text-left">
           <h1 className="text-2xl font-bold">{user.displayName}</h1>
           <p className="text-gray-500 dark:text-gray-400 mb-3">@{user.username}</p>
-          
-          {user.bio && (
-            <p className="text-gray-700 dark:text-gray-300 mb-4">{user.bio}</p>
-          )}
-          
+
+          {user.bio && <p className="text-gray-700 dark:text-gray-300 mb-4">{user.bio}</p>}
+
           <div className="flex flex-wrap gap-4 justify-center sm:justify-start mb-4">
             <div>
               <span className="font-bold">{user.followersCount}</span>
@@ -130,7 +105,7 @@ export default function ProfileHeader({ userId }: ProfileHeaderProps) {
               </div>
             )}
           </div>
-          
+
           {!isCurrentUser && (
             <button
               onClick={handleFollowClick}
