@@ -51,11 +51,23 @@ type ReplyResponse struct {
 	Status  string `json:"status"`
 }
 
+type GetRepliesResponse struct {
+	Replies []graphdb.ReplyItem `json:"replies"`
+}
+
+type FeedResponse struct {
+	Posts []graphdb.FeedPost `json:"posts"`
+}
+
+type EmotionTagsResponse struct {
+	EmotionTags []graphdb.EmotionTagOnly `json:"emotionTags"`
+}
+
 func main() {
 	// Initialize Neo4j client
 	client, err := graphdb.NewNeo4jClient(os.Getenv("NEO4J_URI"), "neo4j", "password")
 	if err != nil {
-		log.Fatal("Neo4jクライアント作成失敗:", err)
+		log.Fatal("Failed to create Neo4j client:", err)
 	}
 	defer client.Close()
 
@@ -63,13 +75,21 @@ func main() {
 	http.HandleFunc("/posts/", func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.HasSuffix(r.URL.Path, "/replies"):
-			handleAddReply(client)(w, r)
+			if r.Method == http.MethodPost {
+				handleAddReply(client)(w, r)
+			} else if r.Method == http.MethodGet {
+				handleGetReplies(client)(w, r)
+			} else {
+				http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			}
 		case strings.HasSuffix(r.URL.Path, "/reactions"):
 			handleAddReaction(client)(w, r)
 		default:
 			handleGetPost(client)(w, r)
 		}
 	})
+	http.HandleFunc("/feed", handleGlobalFeed(client))
+	http.HandleFunc("/emotion-tags", handleGetAllEmotionTags(client))
 
 	fmt.Println("🚀 Server started on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
@@ -227,5 +247,68 @@ func handleAddReply(client graphdb.GraphDbClient) http.HandlerFunc {
 			ReplyID: replyId,
 			Status:  "reply created",
 		})
+	}
+}
+
+func handleGetReplies(client graphdb.GraphDbClient) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		postId := strings.TrimPrefix(r.URL.Path, "/posts/")
+		postId = strings.TrimSuffix(postId, "/replies")
+
+		replies, err := client.GetReplies(postId)
+		if err != nil {
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(GetRepliesResponse{Replies: replies})
+	}
+}
+
+func handleGlobalFeed(client graphdb.GraphDbClient) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		emotion := r.URL.Query().Get("emotion")
+		posts, err := client.GetFeed(emotion)
+		if err != nil {
+			log.Printf("Failed to get feed: %v", err)
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(FeedResponse{Posts: posts})
+	}
+}
+
+func handleGetAllEmotionTags(client graphdb.GraphDbClient) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		tags, err := client.GetAllEmotionTags()
+		if err != nil {
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
+
+		resp := EmotionTagsResponse{
+			EmotionTags: tags,
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
 	}
 }

@@ -207,3 +207,125 @@ func (c *Neo4jClient) AddReply(postId, userId, content string) (string, error) {
 
 	return replyId, nil
 }
+
+func (c *Neo4jClient) GetReplies(postId string) ([]ReplyItem, error) {
+	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
+	defer session.Close(context.Background())
+
+	result, err := session.ExecuteRead(context.Background(), func(tx neo4j.ManagedTransaction) (any, error) {
+		records, err := tx.Run(context.Background(), `
+			MATCH (u:User)-[:REPLIED]->(r:Reply)-[:REPLY_TO]->(p:Post {id: $postId})
+			RETURN r.id AS replyId, u.id AS userId, r.content AS content
+			ORDER BY r.id
+		`, map[string]any{"postId": postId})
+		if err != nil {
+			return nil, err
+		}
+
+		var replies []ReplyItem
+		for records.Next(context.Background()) {
+			rec := records.Record()
+			replies = append(replies, ReplyItem{
+				ReplyID: rec.Values[0].(string),
+				UserID:  rec.Values[1].(string),
+				Content: rec.Values[2].(string),
+			})
+		}
+		return replies, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result.([]ReplyItem), nil
+}
+
+func (c *Neo4jClient) GetFeed(emotionFilter string) ([]FeedPost, error) {
+	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
+	defer session.Close(context.Background())
+
+	var query string
+	params := map[string]any{}
+	if emotionFilter != "" {
+		query = `
+			MATCH (p:Post)<-[t:TAGGED]-(e:Emotion)
+			WHERE e.type = $emotion
+			MATCH (u:User)-[:POSTED]->(p)
+			RETURN p.id AS postId, p.content AS content, u.id AS userId,
+			       collect({type: e.type, score: t.score}) AS emotions
+		`
+		params["emotion"] = emotionFilter
+	} else {
+		query = `
+			MATCH (u:User)-[:POSTED]->(p:Post)
+			OPTIONAL MATCH (e:Emotion)-[t:TAGGED]->(p)
+			RETURN p.id AS postId, p.content AS content, u.id AS userId,
+			       collect({type: e.type, score: t.score}) AS emotions
+		`
+	}
+
+	result, err := session.ExecuteRead(context.Background(), func(tx neo4j.ManagedTransaction) (any, error) {
+		records, err := tx.Run(context.Background(), query, params)
+		if err != nil {
+			return nil, err
+		}
+
+		var posts []FeedPost
+		for records.Next(context.Background()) {
+			rec := records.Record()
+			emotionsRaw := rec.Values[3].([]any)
+			var emotions []EmotionTag
+			for _, e := range emotionsRaw {
+				if m, ok := e.(map[string]any); ok {
+					emotions = append(emotions, EmotionTag{
+						Type:  m["type"].(string),
+						Score: m["score"].(float64),
+					})
+				}
+			}
+			posts = append(posts, FeedPost{
+				PostID:      rec.Values[0].(string),
+				Content:     rec.Values[1].(string),
+				UserID:      rec.Values[2].(string),
+				EmotionTags: emotions,
+			})
+		}
+		return posts, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result.([]FeedPost), nil
+}
+
+func (c *Neo4jClient) GetAllEmotionTags() ([]EmotionTagOnly, error) {
+	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
+	defer session.Close(context.Background())
+
+	result, err := session.ExecuteRead(context.Background(), func(tx neo4j.ManagedTransaction) (any, error) {
+		records, err := tx.Run(context.Background(), `
+			MATCH (e:Emotion)
+			RETURN DISTINCT e.type AS type
+			ORDER BY type
+		`, nil)
+		if err != nil {
+			return nil, err
+		}
+
+		var tags []EmotionTagOnly
+		for records.Next(context.Background()) {
+			record := records.Record()
+			etype, _ := record.Get("type")
+			if etype != nil {
+				tags = append(tags, EmotionTagOnly{
+					Type: etype.(string),
+				})
+			}
+		}
+
+		return tags, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result.([]EmotionTagOnly), nil
+}
