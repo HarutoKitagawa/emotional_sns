@@ -14,7 +14,31 @@ import {
  * Hook for fetching a user by ID
  */
 export const useUser = (userId: string) => {
-  return useSWR<User>(userId ? createApiUrl(`/users/${userId}`) : null);
+  // Use Next.js API route instead of direct backend URL
+  const url = userId ? `/api/users/${userId}` : null;
+  console.log("Fetching user data:", url);
+  
+  return useSWR<User>(url, async (url: string) => {
+    try {
+      console.log("Starting fetch for user data");
+      const response = await fetch(url);
+      
+      console.log("User API response status:", response.status);
+      
+      if (!response.ok) {
+        console.error("User API error:", response.status, response.statusText);
+        throw new Error(`Failed to fetch user: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      console.log("User data received:", data);
+      
+      return data;
+    } catch (error) {
+      console.error("Error in useUser:", error);
+      throw error;
+    }
+  });
 };
 
 /**

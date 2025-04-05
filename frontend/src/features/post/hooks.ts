@@ -21,7 +21,162 @@ export const usePost = (postId: string) => {
  * Hook for fetching feed posts
  */
 export const useFeedPosts = () => {
-  return useSWR<Post[]>(createApiUrl('/posts'));
+  const url = `/api/users/1/feed`; // ← Next.jsのAPIルートに変更！
+  console.log("Fetching feed posts", url);
+
+  return useSWR<Post[]>(url, async (url: string) => {
+    try {
+      console.log("Starting fetch for feed posts");
+      const response = await fetch(url);
+      
+      console.log("Feed API response status:", response.status);
+      
+      if (!response.ok) {
+        console.error("Feed API error:", response.status, response.statusText);
+        throw new Error(`Failed to fetch feed posts: ${response.status} ${response.statusText}`);
+      }
+      
+      const data = await response.json();
+      
+      // Log the data to help debug
+      console.log("Feed data received type:", typeof data);
+      console.log("Feed data is array:", Array.isArray(data));
+      if (typeof data === 'object' && data !== null) {
+        console.log("Feed data keys:", Object.keys(data));
+        
+        if (Array.isArray(data)) {
+          console.log("Feed data array length:", data.length);
+          if (data.length > 0) {
+            console.log("First post sample:", JSON.stringify(data[0]));
+          }
+        } else if (data.posts) {
+          console.log("Feed data.posts is array:", Array.isArray(data.posts));
+          if (Array.isArray(data.posts)) {
+            console.log("Feed data.posts length:", data.posts.length);
+            if (data.posts.length > 0) {
+              console.log("First post sample:", JSON.stringify(data.posts[0]));
+            }
+          }
+        }
+      }
+      
+      // Handle different response formats
+      let posts: Post[] = [];
+      
+      if (Array.isArray(data)) {
+        console.log("Processing data as array");
+        posts = data;
+      } else if (data && typeof data === 'object' && Array.isArray(data.posts)) {
+        console.log("Processing data.posts as array");
+        posts = data.posts;
+      } else {
+        console.error("Unexpected data format:", JSON.stringify(data));
+        return [];
+      }
+      
+      console.log("Posts extracted, count:", posts.length);
+      
+      // Map backend data structure to frontend expected structure
+      const postsWithCorrectStructure = posts.map((post: any, index) => {
+        // Map postId to id if it exists
+        if (post.postId && !post.id) {
+          console.log(`Mapping postId to id for post at index ${index}`);
+          
+          // Create a new post object with the correct structure
+          const mappedPost: Post = {
+            id: post.postId,
+            userId: post.userId,
+            content: post.content,
+            createdAt: post.createdAt,
+            emotionTags: Array.isArray(post.emotionTags) 
+              ? post.emotionTags.map((tag: any) => ({
+                  type: tag.emotion || tag.type,
+                  score: tag.score
+                }))
+              : [],
+            reactionCounts: post.reactions || {
+              like: 0,
+              love: 0,
+              cry: 0,
+              angry: 0,
+              wow: 0
+            },
+            replyCount: post.replyCount || 0
+          };
+          
+          return mappedPost;
+        } else if (!post.id) {
+          // If neither postId nor id exists, generate a temporary ID
+          console.warn(`Post at index ${index} has no ID, generating temporary ID`);
+          return {
+            ...post,
+            id: `temp-${index}`,
+            reactionCounts: post.reactions || {
+              like: 0,
+              love: 0,
+              cry: 0,
+              angry: 0,
+              wow: 0
+            }
+          };
+        }
+        
+        // If post already has id, ensure it has the correct structure
+        return {
+          ...post,
+          reactionCounts: post.reactions || post.reactionCounts || {
+            like: 0,
+            love: 0,
+            cry: 0,
+            angry: 0,
+            wow: 0
+          }
+        };
+      });
+      
+      // Check for duplicate IDs
+      const ids = postsWithCorrectStructure.map((post: Post) => post.id);
+      const hasDuplicates = ids.some((id: string, index: number) => ids.indexOf(id) !== index);
+      
+      if (hasDuplicates) {
+        console.warn("Duplicate post IDs detected:", ids);
+        
+        // Create a map to count occurrences of each ID
+        const idCounts = ids.reduce((acc: Record<string, number>, id: string) => {
+          acc[id] = (acc[id] || 0) + 1;
+          return acc;
+        }, {} as Record<string, number>);
+        
+        // Log the duplicate IDs
+        Object.entries(idCounts)
+          .filter(([_, count]) => (count as number) > 1)
+          .forEach(([id, count]) => {
+            console.warn(`ID ${id} appears ${count} times`);
+          });
+          
+        // Make IDs unique by appending index for duplicates
+        const seenIds = new Set<string>();
+        const trulyUniqueIds = postsWithCorrectStructure.map((post: Post, index: number) => {
+          if (seenIds.has(post.id)) {
+            const newId = `${post.id}-${index}`;
+            console.log(`Changing duplicate ID ${post.id} to ${newId}`);
+            return { ...post, id: newId };
+          } else {
+            seenIds.add(post.id);
+            return post;
+          }
+        });
+        
+        return trulyUniqueIds;
+      }
+      
+      console.log("Returning posts with unique IDs, count:", postsWithCorrectStructure.length);
+      return postsWithCorrectStructure;
+    } catch (error) {
+      console.error("Error in useFeedPosts:", error);
+      throw error;
+    }
+  });
 };
 
 /**
@@ -51,6 +206,7 @@ export const useEmotionalImpact = (postId: string) => {
  * Hook for creating a new post
  */
 export const useCreatePost = () => {
+  console.log("Creating post");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
