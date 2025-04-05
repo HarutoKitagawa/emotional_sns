@@ -10,3 +10,31 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=development
+
+  backend:
+    build: ./backend
+    ports:
+      - "8080:8080"
+    depends_on:
+      - neo4j
+      - emotion_analysis
+    environment:
+      - NEO4J_URI=bolt://neo4j:7687
+      - EMOTION_API=http://emotion_analysis:5000
+
+  emotion_analysis:
+    build: ./emotion_analysis
+    ports:
+      - "5001:5000"
+    volumes:
+      - ./emotion_analysis:/app
+    env_file:
+      - emotion_analysis/.env
+
+  neo4j:
+    image: neo4j:5.26
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    environment:
+      - NEO4J_AUTH=neo4j/password
