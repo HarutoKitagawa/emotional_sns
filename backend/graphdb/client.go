@@ -13,11 +13,13 @@ type ReplyItem struct {
 }
 
 type FeedPost struct {
-	PostID      string       `json:"postId"`
-	UserID      string       `json:"userId"`
-	Content     string       `json:"content"`
-	CreatedAt   string       `json:"createdAt"`
-	EmotionTags []EmotionTag `json:"emotionTags"`
+	PostID      string         `json:"postId"`
+	UserID      string         `json:"userId"`
+	Content     string         `json:"content"`
+	CreatedAt   string         `json:"createdAt"`
+	EmotionTags []EmotionTag   `json:"emotionTags"`
+	Reactions   map[string]int `json:"reactions"`
+	ReplyCount  int            `json:"replyCount"`
 }
 
 type EmotionTagOnly struct {
