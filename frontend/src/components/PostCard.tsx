@@ -17,6 +17,7 @@ interface PostCardProps {
 export default function PostCard({ post, user, preview = false }: PostCardProps) {
   const [showFullContent, setShowFullContent] = useState(false);
   const { addReaction, isLoading: isReacting } = useAddReaction(post.id);
+  const { user: loginUser } = useAuth();
   
   const dominantEmotion = getDominantEmotion(post.emotionTags);
   const emotionColor = getEmotionColor(dominantEmotion);
@@ -27,7 +28,7 @@ export default function PostCard({ post, user, preview = false }: PostCardProps)
   
   const handleReaction = async (type: ReactionType) => {
     if (isReacting) return;
-    await addReaction(user.id, type);
+    await addReaction(loginUser!.id, type);
   };
   
   const reactionButtons: { type: ReactionType; emoji: string }[] = [
