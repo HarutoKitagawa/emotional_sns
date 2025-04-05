@@ -777,3 +777,196 @@ func (c *Neo4jClient) ValidateUserCredentials(email, password string) (string, e
 
 	return user.ID, nil
 }
+
+// GetUserWithDetails retrieves a user with follower and following counts
+func (c *Neo4jClient) GetUserWithDetails(userId string) (UserDetails, error) {
+	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
+	defer session.Close(context.Background())
+
+	result, err := session.ExecuteRead(context.Background(), func(tx neo4j.ManagedTransaction) (any, error) {
+		result, err := tx.Run(context.Background(), `
+			MATCH (u:User {id: $userId})
+			RETURN u.id, u.username, u.email
+		`, map[string]any{"userId": userId})
+		if err != nil {
+			return nil, err
+		}
+
+		if !result.Next(context.Background()) {
+			return nil, errors.New("user not found")
+		}
+
+		record := result.Record()
+		id, _ := record.Get("u.id")
+		username, _ := record.Get("u.username")
+		email, _ := record.Get("u.email")
+
+		// Generate avatar URL from username
+		avatarUrl := "https://ui-avatars.com/api/?name=" + username.(string)
+
+		// Default display name to username if not set
+		displayName := username.(string)
+
+		// Get follower count
+		followersCount, err := c.CountFollowers(userId)
+		if err != nil {
+			followersCount = 0
+		}
+
+		// Get following count
+		followingCount, err := c.CountFollowing(userId)
+		if err != nil {
+			followingCount = 0
+		}
+
+		return UserDetails{
+			ID:             id.(string),
+			Username:       username.(string),
+			DisplayName:    displayName,
+			Email:          email.(string),
+			AvatarUrl:      avatarUrl,
+			Bio:            "", // Default empty bio
+			FollowersCount: followersCount,
+			FollowingCount: followingCount,
+		}, nil
+	})
+
+	if err != nil {
+		return UserDetails{}, err
+	}
+
+	return result.(UserDetails), nil
+}
+
+// GetUserPosts retrieves all posts by a specific user
+func (c *Neo4jClient) GetUserPosts(userId string) ([]FeedPost, error) {
+	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
+	defer session.Close(context.Background())
+
+	result, err := session.ExecuteRead(context.Background(), func(tx neo4j.ManagedTransaction) (any, error) {
+		records, err := tx.Run(context.Background(), `
+			MATCH (u:User {id: $userId})-[:POSTED]->(p:Post)
+			OPTIONAL MATCH (e:Emotion)-[t:TAGGED]->(p)
+			OPTIONAL MATCH (reactor:User)-[r:REACTED]->(p)
+			OPTIONAL MATCH (replier:User)-[:REPLIED]->(reply:Reply)-[:REPLY_TO]->(p)
+			RETURN 
+				p.id AS postId,
+				p.content AS content,
+				u.id AS userId,
+				p.createdAt AS createdAt,
+				collect(DISTINCT {type: e.type, score: t.score}) AS emotions,
+				collect(DISTINCT {type: r.type}) AS reactions,
+				count(DISTINCT reply) AS replyCount
+			ORDER BY p.createdAt DESC
+		`, map[string]any{"userId": userId})
+		if err != nil {
+			return nil, err
+		}
+
+		var posts []FeedPost
+		for records.Next(context.Background()) {
+			rec := records.Record()
+
+			// emotionTags
+			emotionsRaw := rec.Values[4].([]any)
+			var emotions []EmotionTag
+			for _, e := range emotionsRaw {
+				if m, ok := e.(map[string]any); ok {
+					emotions = append(emotions, EmotionTag{
+						Type:  m["type"].(string),
+						Score: m["score"].(float64),
+					})
+				}
+			}
+
+			// reactions
+			reactionsRaw := rec.Values[5].([]any)
+			reactionCounts := map[string]int{}
+			for _, r := range reactionsRaw {
+				if m, ok := r.(map[string]any); ok {
+					if reactionType, ok := m["type"].(string); ok && reactionType != "" {
+						reactionCounts[reactionType]++
+					}
+				}
+			}
+
+			// reply count
+			replyCount := int(rec.Values[6].(int64))
+
+			posts = append(posts, FeedPost{
+				PostID:      rec.Values[0].(string),
+				Content:     rec.Values[1].(string),
+				UserID:      rec.Values[2].(string),
+				CreatedAt:   rec.Values[3].(string),
+				EmotionTags: emotions,
+				Reactions:   reactionCounts,
+				ReplyCount:  replyCount,
+			})
+		}
+		return posts, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result.([]FeedPost), nil
+}
+
+// CountFollowers counts the number of followers for a user
+func (c *Neo4jClient) CountFollowers(userId string) (int, error) {
+	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
+	defer session.Close(context.Background())
+
+	result, err := session.ExecuteRead(context.Background(), func(tx neo4j.ManagedTransaction) (any, error) {
+		result, err := tx.Run(context.Background(), `
+			MATCH (follower:User)-[:FOLLOWS]->(u:User {id: $userId})
+			RETURN count(follower) AS followerCount
+		`, map[string]any{"userId": userId})
+		if err != nil {
+			return 0, err
+		}
+
+		if !result.Next(context.Background()) {
+			return 0, nil
+		}
+
+		record := result.Record()
+		count, _ := record.Get("followerCount")
+		return int(count.(int64)), nil
+	})
+
+	if err != nil {
+		return 0, err
+	}
+
+	return result.(int), nil
+}
+
+// CountFollowing counts the number of users a user is following
+func (c *Neo4jClient) CountFollowing(userId string) (int, error) {
+	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
+	defer session.Close(context.Background())
+
+	result, err := session.ExecuteRead(context.Background(), func(tx neo4j.ManagedTransaction) (any, error) {
+		result, err := tx.Run(context.Background(), `
+			MATCH (u:User {id: $userId})-[:FOLLOWS]->(followed:User)
+			RETURN count(followed) AS followingCount
+		`, map[string]any{"userId": userId})
+		if err != nil {
+			return 0, err
+		}
+
+		if !result.Next(context.Background()) {
+			return 0, nil
+		}
+
+		record := result.Record()
+		count, _ := record.Get("followingCount")
+		return int(count.(int64)), nil
+	})
+
+	if err != nil {
+		return 0, err
+	}
+
+	return result.(int), nil
+}

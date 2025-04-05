@@ -51,6 +51,18 @@ type AuthUser struct {
 	Password string `json:"-"` // Password is never returned in JSON
 }
 
+// UserDetails contains user information with follower and following counts
+type UserDetails struct {
+	ID             string `json:"id"`
+	Username       string `json:"username"`
+	DisplayName    string `json:"displayName"`
+	Email          string `json:"email"`
+	AvatarUrl      string `json:"avatarUrl"`
+	Bio            string `json:"bio"`
+	FollowersCount int    `json:"followersCount"`
+	FollowingCount int    `json:"followingCount"`
+}
+
 type GraphDbClient interface {
 	CreatePostWithEmotions(userId, postId, content string, emotions []EmotionTag) error
 	GetPostWithEmotions(postId string) (userId, content, createdAt string, emotions []EmotionTag, err error)
@@ -72,6 +84,12 @@ type GraphDbClient interface {
 	GetUserByEmail(email string) (AuthUser, error)
 	GetUserById(userId string) (AuthUser, error)
 	ValidateUserCredentials(email, password string) (string, error)
+
+	// User profile methods
+	GetUserWithDetails(userId string) (UserDetails, error)
+	GetUserPosts(userId string) ([]FeedPost, error)
+	CountFollowers(userId string) (int, error)
+	CountFollowing(userId string) (int, error)
 
 	Close() error
 }
