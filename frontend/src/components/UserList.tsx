@@ -30,21 +30,19 @@ interface UserListItemProps {
 }
 
 function UserListItem({ user }: UserListItemProps) {
-  // In a real app, we would use this hook
-  // const { isFollowing, follow, unfollow, isLoading } = useFollowUser(user.id);
-  
-  // For now, we'll use mock data
-  const isFollowing = Math.random() > 0.5; // Randomly show following or not
-  const isLoading = false;
+  const { isFollowing, follow, unfollow, isLoading } = useFollowUser(user.id);
   
   const handleFollowClick = async () => {
-    // In a real app, we would call this
-    // if (isFollowing) {
-    //   await unfollow();
-    // } else {
-    //   await follow();
-    // }
-    console.log(`${isFollowing ? 'Unfollowed' : 'Followed'} user: ${user.id}`);
+    try {
+      if (isFollowing) {
+        await unfollow();
+      } else {
+        await follow();
+      }
+      console.log(`${isFollowing ? 'Unfollowed' : 'Followed'} user: ${user.id}`);
+    } catch (error) {
+      console.error('Error following/unfollowing user:', error);
+    }
   };
   
   return (

@@ -15,13 +15,16 @@ export default function ProfileHeader({ userId }: ProfileHeaderProps) {
   const isCurrentUser = currentUser?.id === userId;
   
   const handleFollowClick = async () => {
-    // In a real app, we would call this
-    // if (isFollowing) {
-    //   await unfollow();
-    // } else {
-    //   await follow();
-    // }
-    console.log(`${isFollowing ? 'Unfollowed' : 'Followed'} user: ${userId}`);
+    try {
+      if (isFollowing) {
+        await unfollow();
+      } else {
+        await follow();
+      }
+      console.log(`${isFollowing ? 'Unfollowed' : 'Followed'} user: ${userId}`);
+    } catch (error) {
+      console.error('Error following/unfollowing user:', error);
+    }
   };
   
   if (isLoading) {
