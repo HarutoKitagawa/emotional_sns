@@ -9,7 +9,10 @@ import {
   getCurrentUser,
   unfollowUser,
   updateUserProfile,
-} from './api';
+  getUser,
+  getUserFollowers,
+  getUserFollowing,
+} from '../../lib/api';
 
 /**
  * Hook for fetching a user by ID
@@ -47,7 +50,19 @@ export const useUser = (userId: string) => {
  */
 export const useUserFollowers = (userId: string) => {
   return useSWR<User[]>(
-    userId ? createApiUrl(`/users/${userId}/followers`) : null
+    userId ? `/api/users/${userId}/followers` : null,
+    async (url: string) => {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch followers: ${response.status}`);
+        }
+        return response.json();
+      } catch (error) {
+        console.error("Error in useUserFollowers:", error);
+        throw error;
+      }
+    }
   );
 };
 
@@ -56,7 +71,19 @@ export const useUserFollowers = (userId: string) => {
  */
 export const useUserFollowing = (userId: string) => {
   return useSWR<User[]>(
-    userId ? createApiUrl(`/users/${userId}/following`) : null
+    userId ? `/api/users/${userId}/following` : null,
+    async (url: string) => {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch following: ${response.status}`);
+        }
+        return response.json();
+      } catch (error) {
+        console.error("Error in useUserFollowing:", error);
+        throw error;
+      }
+    }
   );
 };
 
@@ -65,7 +92,19 @@ export const useUserFollowing = (userId: string) => {
  */
 export const useUserSession = (): UserSession => {
   const { data, error, isLoading } = useSWR<User>(
-    createApiUrl('/users/me'),
+    '/api/users/me',
+    async (url: string) => {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch current user: ${response.status}`);
+        }
+        return response.json();
+      } catch (error) {
+        console.error("Error in useUserSession:", error);
+        throw error;
+      }
+    },
     {
       // Don't revalidate on focus to avoid unnecessary requests
       revalidateOnFocus: false,

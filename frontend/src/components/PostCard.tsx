@@ -6,6 +6,7 @@ import { User } from '../types/user';
 import UserAvatar from './UserAvatar';
 import { formatDate, getDominantEmotion, getEmotionColor, truncateText } from '../lib/utils';
 import { useAddReaction } from '../features/post/hooks';
+import { useAuth } from '@/features/auth/hooks';
 
 interface PostCardProps {
   post: Post;
