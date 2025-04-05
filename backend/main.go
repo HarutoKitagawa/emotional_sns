@@ -89,7 +89,12 @@ func main() {
 			handleGetPost(client)(w, r)
 		}
 	})
-	http.HandleFunc("/feed", handleGlobalFeed(client))
+	http.HandleFunc("/users/", func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/feed") {
+			handleUserFeed(client)(w, r)
+			return
+		}
+	})
 	http.HandleFunc("/emotion-tags", handleGetAllEmotionTags(client))
 
 	fmt.Println("🚀 Server started on :8080")
@@ -273,12 +278,20 @@ func handleGetReplies(client graphdb.GraphDbClient) http.HandlerFunc {
 	}
 }
 
-func handleGlobalFeed(client graphdb.GraphDbClient) http.HandlerFunc {
+func handleUserFeed(client graphdb.GraphDbClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
 			return
 		}
+
+		// `/users/{userId}/feed` から userId を抽出（使わないが確保）
+		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		if len(parts) != 3 || parts[0] != "users" || parts[2] != "feed" {
+			http.Error(w, "Invalid path", http.StatusBadRequest)
+			return
+		}
+		// userId := parts[1] // 将来的に使う想定
 
 		emotion := r.URL.Query().Get("emotion")
 		posts, err := client.GetFeed(emotion)

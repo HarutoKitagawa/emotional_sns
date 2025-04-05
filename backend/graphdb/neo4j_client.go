@@ -259,11 +259,21 @@ func (c *Neo4jClient) GetFeed(emotionFilter string) ([]FeedPost, error) {
 	params := map[string]any{}
 	if emotionFilter != "" {
 		query = `
-			MATCH (p:Post)<-[t:TAGGED]-(e:Emotion)
+			MATCH (p:Post)<-[:TAGGED]-(e:Emotion)
 			WHERE e.type = $emotion
+			WITH DISTINCT p
 			MATCH (u:User)-[:POSTED]->(p)
-			RETURN p.id AS postId, p.content AS content, u.id AS userId, p.createdAt AS createdAt,
-			       collect({type: e.type, score: t.score}) AS emotions
+			OPTIONAL MATCH (e2:Emotion)-[tag:TAGGED]->(p)
+			OPTIONAL MATCH (reactor:User)-[r:REACTED]->(p)
+			OPTIONAL MATCH (replier:User)-[:REPLIED]->(reply:Reply)-[:REPLY_TO]->(p)
+			RETURN 
+				p.id AS postId,
+				p.content AS content,
+				u.id AS userId,
+				p.createdAt AS createdAt,
+				collect(DISTINCT {type: e2.type, score: tag.score}) AS emotions,
+				collect(DISTINCT {type: r.type}) AS reactions,
+				count(DISTINCT reply) AS replyCount
 			ORDER BY p.createdAt DESC
 		`
 		params["emotion"] = emotionFilter
@@ -271,8 +281,16 @@ func (c *Neo4jClient) GetFeed(emotionFilter string) ([]FeedPost, error) {
 		query = `
 			MATCH (u:User)-[:POSTED]->(p:Post)
 			OPTIONAL MATCH (e:Emotion)-[t:TAGGED]->(p)
-			RETURN p.id AS postId, p.content AS content, u.id AS userId, p.createdAt AS createdAt,
-			       collect({type: e.type, score: t.score}) AS emotions
+			OPTIONAL MATCH (reactor:User)-[r:REACTED]->(p)
+			OPTIONAL MATCH (replier:User)-[:REPLIED]->(reply:Reply)-[:REPLY_TO]->(p)
+			RETURN 
+				p.id AS postId,
+				p.content AS content,
+				u.id AS userId,
+				p.createdAt AS createdAt,
+				collect(DISTINCT {type: e.type, score: t.score}) AS emotions,
+				collect(DISTINCT {type: r.type}) AS reactions,
+				count(DISTINCT reply) AS replyCount
 			ORDER BY p.createdAt DESC
 		`
 	}
@@ -286,6 +304,8 @@ func (c *Neo4jClient) GetFeed(emotionFilter string) ([]FeedPost, error) {
 		var posts []FeedPost
 		for records.Next(context.Background()) {
 			rec := records.Record()
+
+			// emotionTags
 			emotionsRaw := rec.Values[4].([]any)
 			var emotions []EmotionTag
 			for _, e := range emotionsRaw {
@@ -296,12 +316,29 @@ func (c *Neo4jClient) GetFeed(emotionFilter string) ([]FeedPost, error) {
 					})
 				}
 			}
+
+			// reactions
+			reactionsRaw := rec.Values[5].([]any)
+			reactionCounts := map[string]int{}
+			for _, r := range reactionsRaw {
+				if m, ok := r.(map[string]any); ok {
+					if reactionType, ok := m["type"].(string); ok && reactionType != "" {
+						reactionCounts[reactionType]++
+					}
+				}
+			}
+
+			// reply count
+			replyCount := int(rec.Values[6].(int64))
+
 			posts = append(posts, FeedPost{
 				PostID:      rec.Values[0].(string),
 				Content:     rec.Values[1].(string),
 				UserID:      rec.Values[2].(string),
 				CreatedAt:   rec.Values[3].(string),
 				EmotionTags: emotions,
+				Reactions:   reactionCounts,
+				ReplyCount:  replyCount,
 			})
 		}
 		return posts, nil
