@@ -7,14 +7,14 @@ import ReplyList from '../../../components/ReplyList';
 import EmotionalImpactChart from '../../../components/EmotionalImpactChart';
 
 interface PostPageProps {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
-// ✅ OK: 関数本体内で分割代入する
-export default async function PostPage(props: { params: { id: string } }) {
-  const { id } = await props.params;
+// Next.js Page Component
+export default async function PostPage({ params }: PostPageProps) {
+  const { id } = await params;
   if (!id || typeof id !== 'string') {
     return notFound();
   }

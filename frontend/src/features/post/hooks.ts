@@ -9,13 +9,17 @@ import {
   createPost,
   getEmotionalImpact,
   getReplies,
-} from './api';
+  getFeedPosts,
+  getPostDetail,
+  getPost
+} from '../../lib/api';
 
 /**
  * Hook for fetching a post by ID
  */
 export const usePost = (postId: string) => {
-  return useSWR<Post>(postId ? createApiUrl(`/posts/${postId}`) : null);
+  console.log("Fetching post detail for ID:", postId);
+  return useSWR<Post>(`/api/posts/${postId}`, () => getPost(postId))
 };
 
 /**
@@ -231,10 +235,10 @@ export const useCreatePost = () => {
 /**
  * Hook for adding a reaction to a post
  */
-export const useAddReaction = (postId: string) => {
+export const useAddReaction = (postId: string, userId: string) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
-  const { mutate } = usePost(postId);
+  const { mutate } = useFeedPosts();
 
   const handleAddReaction = async (userId: string, type: ReactionType) => {
     setIsLoading(true);

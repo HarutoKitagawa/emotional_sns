@@ -1,71 +1,22 @@
 'use client';
 import { User } from '../types/user';
-import { Post } from '../types/post';
+import { Post, ReactionType } from '../types/post';
 import UserAvatar from './UserAvatar';
 import { formatDate, getDominantEmotion, getEmotionColor } from '../lib/utils';
 import { usePost, useAddReaction } from '../features/post/hooks';
-
-// Mock data for demonstration purposes
-const MOCK_USER: User = {
-  id: 'user1',
-  username: 'yamada_taro',
-  displayName: '山田太郎',
-  avatarUrl: 'https://i.pravatar.cc/150?img=1',
-  followersCount: 120,
-  followingCount: 85,
-  emotionalProfile: {
-    dominantEmotions: ['joy', 'surprise'],
-    emotionalRange: 75,
-  },
-};
-
-const MOCK_POST: Post = {
-  id: 'post1',
-  userId: 'user1',
-  content: '今日は天気が良くて気分も最高！公園でピクニックをしてきました。自然の中で過ごす時間は本当に癒されますね。皆さんも休日は外に出かけてみてはいかがでしょうか？\n\n写真は公園で撮った桜の木です。もう満開で、とても綺麗でした。来週末まで見頃だそうです。',
-  createdAt: new Date(Date.now() - 3600000).toISOString(),
-  emotionTags: [
-    { type: 'joy', score: 0.8 },
-    { type: 'surprise', score: 0.3 },
-  ],
-  reactionCounts: {
-    like: 15,
-    love: 7,
-    cry: 0,
-    angry: 0,
-    wow: 3,
-  },
-  replyCount: 5,
-};
 
 interface PostDetailProps {
   postId: string;
 }
 
 export default function PostDetail({ postId }: PostDetailProps) {
-  // In a real app, we would use these hooks
-  // const { data: post, error, isLoading } = usePost(postId);
-  // const { data: postUser } = useUser(post?.userId || '');
-  // const { addReaction, isLoading: isReacting } = useAddReaction(postId);
+  // Use real data from hooks
+  const { data: post, error, isLoading } = usePost(postId);
+  //const { data: postUser } = useUser(post?.userId || '');
+  const { addReaction, isLoading: isReacting } = useAddReaction(postId,"1");
+  console.log("postId", postId);
   
-  // For now, we'll use mock data
-  const post = MOCK_POST;
-  const postUser = MOCK_USER;
-  const isLoading = false;
-  const error = null;
-  const isReacting = false;
-  
-  const dominantEmotion = getDominantEmotion(post?.emotionTags || []);
-  const emotionColor = getEmotionColor(dominantEmotion);
-  
-  const handleReaction = async (type: 'like' | 'love' | 'cry' | 'angry' | 'wow') => {
-    // In a real app, we would call this
-    // if (isReacting) return;
-    // await addReaction(currentUser.id, type);
-    console.log(`Added reaction: ${type}`);
-  };
-  
-  if (isLoading) {
+  if (isLoading || !post) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 animate-pulse">
         <div className="flex items-start space-x-3">
@@ -81,7 +32,19 @@ export default function PostDetail({ postId }: PostDetailProps) {
     );
   }
 
-  if (error || !post) {
+  // Use real data only
+  const currentPost = post;
+  const currentUser = postUser;
+  
+  const dominantEmotion = getDominantEmotion(currentPost.emotionTags || []);
+  const emotionColor = getEmotionColor(dominantEmotion);
+  
+  const handleReaction = async (type: ReactionType) => {
+    if (isReacting) return;
+    await addReaction(currentUser.id, type);
+  };
+
+  if (error) {
     return (
       <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-red-600 dark:text-red-400">
         投稿の読み込み中にエラーが発生しました。再度お試しください。
@@ -90,31 +53,31 @@ export default function PostDetail({ postId }: PostDetailProps) {
   }
 
   const reactionButtons = [
-    { type: 'like' as const, emoji: '👍' },
-    { type: 'love' as const, emoji: '❤️' },
-    { type: 'cry' as const, emoji: '😢' },
-    { type: 'angry' as const, emoji: '😡' },
-    { type: 'wow' as const, emoji: '😮' },
+    { type: 'like' as ReactionType, emoji: '👍' },
+    { type: 'love' as ReactionType, emoji: '❤️' },
+    { type: 'cry' as ReactionType, emoji: '😢' },
+    { type: 'angry' as ReactionType, emoji: '😡' },
+    { type: 'wow' as ReactionType, emoji: '😮' },
   ];
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
       <div className="flex items-start space-x-3 mb-4">
-        <UserAvatar user={postUser} size="lg" showName />
+        <UserAvatar user={currentUser} size="lg" showName />
         
         <div className="flex-1 min-w-0 pt-1">
           <div className="text-sm text-gray-500">
-            {formatDate(post.createdAt)}
+            {formatDate(currentPost.createdAt)}
           </div>
         </div>
       </div>
       
       <div className="mb-4 whitespace-pre-line text-lg">
-        {post.content}
+        {currentPost.content}
       </div>
       
       <div className="flex flex-wrap gap-2 mb-6">
-        {post.emotionTags.map((tag) => (
+        {currentPost.emotionTags.map((tag: { type: string; score: number }) => (
           <span 
             key={tag.type}
             className="text-sm px-3 py-1 rounded-full" 
@@ -136,19 +99,19 @@ export default function PostDetail({ postId }: PostDetailProps) {
               onClick={() => handleReaction(button.type)}
               disabled={isReacting}
               className={`flex items-center space-x-1 px-3 py-2 rounded-full text-sm ${
-                post.reactionCounts[button.type] > 0
+                currentPost.reactionCounts[button.type] > 0
                   ? 'bg-blue-50 text-blue-500 dark:bg-blue-900 dark:text-blue-300'
                   : 'hover:bg-gray-100 dark:hover:bg-gray-700'
               }`}
             >
               <span>{button.emoji}</span>
-              <span>{post.reactionCounts[button.type]}</span>
+              <span>{currentPost.reactionCounts[button.type]}</span>
             </button>
           ))}
         </div>
         
         <div className="text-sm text-gray-500">
-          {post.replyCount > 0 && `${post.replyCount}件の返信`}
+          {currentPost.replyCount > 0 && `${currentPost.replyCount}件の返信`}
         </div>
       </div>
     </div>

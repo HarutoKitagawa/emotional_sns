@@ -80,9 +80,13 @@ func (c *Neo4jClient) GetPostWithEmotions(postId string) (string, string, string
 		rec, err := tx.Run(context.Background(), `
 			MATCH (u:User)-[:POSTED]->(p:Post {id: $postId})
 			OPTIONAL MATCH (e:Emotion)-[t:TAGGED]->(p)
-			RETURN u.id AS userId, p.content AS content,
-			       collect({type: e.type, score: t.score}) AS emotions
+			RETURN 
+				u.id AS userId,
+				p.content AS content,
+				p.createdAt AS createdAt,
+				collect({type: e.type, score: t.score}) AS emotions
 		`, map[string]any{"postId": postId})
+	
 		if err != nil {
 			return nil, err
 		}
@@ -93,6 +97,7 @@ func (c *Neo4jClient) GetPostWithEmotions(postId string) (string, string, string
 		record := rec.Record()
 		userId, _ := record.Get("userId")
 		content, _ := record.Get("content")
+		createdAt, _ := record.Get("createdAt") // ← 追加
 		rawEmotions, _ := record.Get("emotions")
 
 		var emotions []EmotionTag
@@ -108,14 +113,17 @@ func (c *Neo4jClient) GetPostWithEmotions(postId string) (string, string, string
 		}
 
 		return struct {
-			UserID   string
-			Content  string
-			Emotions []EmotionTag
+			UserID    string
+			Content   string
+			CreatedAt string
+			Emotions  []EmotionTag
 		}{
-			UserID:   userId.(string),
-			Content:  content.(string),
-			Emotions: emotions,
+			UserID:    userId.(string),
+			Content:   content.(string),
+			CreatedAt: createdAt.(string), // ← panicしやすいので、必要なら型チェックしてもOK
+			Emotions:  emotions,
 		}, nil
+
 	})
 	if err != nil {
 		return "", "", "", nil, err

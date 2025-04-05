@@ -3,9 +3,9 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
-  const userId = params.id;
+  const userId = context.params.id;
   
   try {
     console.log(`API route: Fetching user with ID ${userId}`);

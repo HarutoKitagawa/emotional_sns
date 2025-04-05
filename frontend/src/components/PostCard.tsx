@@ -15,7 +15,7 @@ interface PostCardProps {
 
 export default function PostCard({ post, user, preview = false }: PostCardProps) {
   const [showFullContent, setShowFullContent] = useState(false);
-  const { addReaction, isLoading: isReacting } = useAddReaction(post.id);
+  const { addReaction, isLoading: isReacting } = useAddReaction(post.id, "1");
   
   const dominantEmotion = getDominantEmotion(post.emotionTags);
   const emotionColor = getEmotionColor(dominantEmotion);
