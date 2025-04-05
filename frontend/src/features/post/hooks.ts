@@ -11,7 +11,8 @@ import {
   getReplies,
   getFeedPosts,
   getPostDetail,
-  getPost
+  getPost,
+  getEmotionTags
 } from '../../lib/api';
 
 /**
@@ -293,4 +294,21 @@ export const useAddReply = (postId: string) => {
     isLoading,
     error,
   };
+};
+
+/**
+ * Hook for fetching all available emotion tags
+ */
+export const useEmotionTags = () => {
+  return useSWR<string[]>('/api/emotion-tags', async () => {
+    try {
+      console.log('Fetching emotion tags in hook');
+      const tags = await getEmotionTags();
+      console.log('Emotion tags fetched in hook:', tags);
+      return tags;
+    } catch (error) {
+      console.error('Error fetching emotion tags in hook:', error);
+      throw error;
+    }
+  });
 };
