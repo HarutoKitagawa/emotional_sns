@@ -72,6 +72,20 @@ type FollowResponse struct {
 	Status string `json:"status"`
 }
 
+type PostInfluenceResponse struct {
+	PostID       string                  `json:"postId"`
+	FirstDegree  []graphdb.InfluenceUser `json:"firstDegree"`
+	SecondDegree []graphdb.InfluenceUser `json:"secondDegree"`
+	ThirdDegree  []graphdb.InfluenceUser `json:"thirdDegree"`
+	Summary      PostInfluenceSummary    `json:"summary"`
+}
+
+type PostInfluenceSummary struct {
+	TotalUsers int            `json:"totalUsers"`
+	ByType     map[string]int `json:"byType"`
+	ByDegree   map[string]int `json:"byDegree"`
+}
+
 func main() {
 	// Initialize Neo4j client
 	client, err := graphdb.NewNeo4jClient(os.Getenv("NEO4J_URI"), "neo4j", "password")
@@ -93,6 +107,8 @@ func main() {
 			}
 		case strings.HasSuffix(r.URL.Path, "/reactions"):
 			handleAddReaction(client)(w, r)
+		case strings.HasSuffix(r.URL.Path, "/influence"):
+			handleGetPostInfluence(client)(w, r)
 		default:
 			handleGetPost(client)(w, r)
 		}
@@ -127,7 +143,7 @@ func handleCreatePost(client graphdb.GraphDbClient) http.HandlerFunc {
 		}
 
 		// Call emotion analysis API
-		emotions, err := analyzeEmotion(req.Content)
+		emotions, err := analyzeEmotionOfPost(req.Content)
 		if err != nil {
 			http.Error(w, "Emotion analysis failed", http.StatusInternalServerError)
 			return
@@ -141,6 +157,29 @@ func handleCreatePost(client graphdb.GraphDbClient) http.HandlerFunc {
 			log.Printf("Failed to create post in database: %v", err)
 			http.Error(w, "Database error", http.StatusInternalServerError)
 			return
+		}
+
+		// 過去24時間に影響を受けた投稿を取得
+		influencedPosts, err := client.GetInfluencedPostsLast24Hours(req.UserID)
+		if err != nil {
+			log.Printf("Failed to get influenced posts: %v", err)
+			// エラーがあっても処理は続行
+		} else {
+			// 各投稿について、同じトピックかどうかを判断
+			for _, post := range influencedPosts {
+				isSameTopic, err := analyzeTopicSimilarity(req.Content, post.Content)
+				if err != nil {
+					log.Printf("Failed to analyze topic similarity: %v", err)
+					continue
+				}
+
+				if isSameTopic {
+					// 同じトピックであれば、SAME_TOPICリレーションを作成
+					if err := client.AddSameTopicRelation(postId, post.PostID); err != nil {
+						log.Printf("Failed to add SAME_TOPIC relation: %v", err)
+					}
+				}
+			}
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -215,27 +254,15 @@ func handleAddReaction(client graphdb.GraphDbClient) http.HandlerFunc {
 			return
 		}
 
+		// Register influence
+		if err := client.AddInfluence(req.UserID, postId, req.Type); err != nil {
+			log.Printf("Failed to register influence: %v", err)
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(map[string]string{"status": "reaction added"})
 	}
-}
-
-func analyzeEmotion(content string) ([]graphdb.EmotionTag, error) {
-	api := os.Getenv("EMOTION_API")
-	body, _ := json.Marshal(map[string]string{"content": content})
-	resp, err := http.Post(api+"/analyze", "application/json", bytes.NewBuffer(body))
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	var result []graphdb.EmotionTag
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, err
-	}
-
-	return result, nil
 }
 
 func handleAddReply(client graphdb.GraphDbClient) http.HandlerFunc {
@@ -258,6 +285,24 @@ func handleAddReply(client graphdb.GraphDbClient) http.HandlerFunc {
 		if err != nil {
 			http.Error(w, "Database error", http.StatusInternalServerError)
 			return
+		}
+
+		postConstent, err := client.GetPostContent(postId)
+		if err != nil {
+			http.Error(w, "Failed to get post content", http.StatusInternalServerError)
+			return
+		}
+		emotionResp, err := analyzeEmotionOfReply(postConstent, req.Content)
+		if err != nil {
+			http.Error(w, "Emotion analysis failed", http.StatusInternalServerError)
+			return
+		}
+
+		// Register influence for each emotion
+		for _, emotion := range emotionResp {
+			if err := client.AddInfluence(req.UserID, postId, emotion.Type); err != nil {
+				log.Printf("Failed to register influence: %v", err)
+			}
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -369,5 +414,119 @@ func handleFollowUser(client graphdb.GraphDbClient) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(FollowResponse{Status: "followed"})
+	}
+}
+
+func analyzeEmotionOfPost(content string) ([]graphdb.EmotionTag, error) {
+	api := os.Getenv("EMOTION_API")
+	body, _ := json.Marshal(map[string]string{"content": content})
+	resp, err := http.Post(api+"/analyze_post", "application/json", bytes.NewBuffer(body))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var result []graphdb.EmotionTag
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func analyzeEmotionOfReply(post string, reply string) ([]graphdb.EmotionTag, error) {
+	api := os.Getenv("EMOTION_API")
+	body, _ := json.Marshal(map[string]string{"post": post, "reply": reply})
+	resp, err := http.Post(api+"/analyze_reply", "application/json", bytes.NewBuffer(body))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var result []graphdb.EmotionTag
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func analyzeTopicSimilarity(content1, content2 string) (bool, error) {
+	api := os.Getenv("EMOTION_API")
+	body, _ := json.Marshal(map[string]string{
+		"post1": content1,
+		"post2": content2,
+	})
+
+	resp, err := http.Post(api+"/analyze_topic_similarity", "application/json", bytes.NewBuffer(body))
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		IsSameTopic bool    `json:"is_same_topic"`
+		Confidence  float64 `json:"confidence"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return false, err
+	}
+
+	// 確信度が0.7以上の場合に同じトピックと判断（閾値は調整可能）
+	return result.IsSameTopic && result.Confidence >= 0.7, nil
+}
+
+func handleGetPostInfluence(client graphdb.GraphDbClient) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		postId := strings.TrimPrefix(r.URL.Path, "/posts/")
+		postId = strings.TrimSuffix(postId, "/influence")
+
+		influence, err := client.GetPostInfluence(postId)
+		if err != nil {
+			log.Printf("Failed to get post influence: %v", err)
+			http.Error(w, "Database error", http.StatusInternalServerError)
+			return
+		}
+
+		// 集計情報を作成
+		totalUsers := len(influence.FirstDegree) + len(influence.SecondDegree) + len(influence.ThirdDegree)
+		byType := make(map[string]int)
+		byDegree := map[string]int{
+			"first":  len(influence.FirstDegree),
+			"second": len(influence.SecondDegree),
+			"third":  len(influence.ThirdDegree),
+		}
+
+		// 影響タイプごとの集計
+		for _, user := range influence.FirstDegree {
+			byType[user.Type]++
+		}
+		for _, user := range influence.SecondDegree {
+			byType[user.Type]++
+		}
+		for _, user := range influence.ThirdDegree {
+			byType[user.Type]++
+		}
+
+		response := PostInfluenceResponse{
+			PostID:       postId,
+			FirstDegree:  influence.FirstDegree,
+			SecondDegree: influence.SecondDegree,
+			ThirdDegree:  influence.ThirdDegree,
+			Summary: PostInfluenceSummary{
+				TotalUsers: totalUsers,
+				ByType:     byType,
+				ByDegree:   byDegree,
+			},
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(response)
 	}
 }

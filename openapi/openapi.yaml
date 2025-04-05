@@ -1,4 +1,4 @@
-openapi: 3.0.0
+openapi: 3.1.0
 info:
   title: EmotionSNS API
   version: 1.0.0
@@ -222,3 +222,60 @@ paths:
             application/json:
               example:
                 status: "followed"
+                
+  /posts/{postId}/influence:
+    get:
+      summary: Get the influence of a post on users
+      description: |
+        Returns information about how many users were influenced by a post, 
+        categorized by degrees of separation.
+        - 1st degree: Users directly influenced by the post
+        - 2nd degree: Users influenced by posts from 1st degree users that have SAME_TOPIC relation with the original post
+        - 3rd degree: Users influenced by posts from 2nd degree users that have SAME_TOPIC relation with the original post
+      parameters:
+        - name: postId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Post influence details
+          content:
+            application/json:
+              example:
+                postId: "post123"
+                firstDegree:
+                  - userId: "user1"
+                    type: "like"
+                  - userId: "user2"
+                    type: "angry"
+                secondDegree:
+                  - userId: "user3"
+                    type: "love"
+                    throughPostId: "post456"
+                  - userId: "user4"
+                    type: "cry"
+                    throughPostId: "post789"
+                thirdDegree:
+                  - userId: "user5"
+                    type: "wow"
+                    throughPostId: "post012"
+                summary:
+                  totalUsers: 5
+                  byType:
+                    like: 1
+                    angry: 1
+                    love: 1
+                    cry: 1
+                    wow: 1
+                  byDegree:
+                    first: 2
+                    second: 2
+                    third: 1
+        "404":
+          description: Post not found
+          content:
+            application/json:
+              example:
+                error: "Post not found"

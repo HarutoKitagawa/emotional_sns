@@ -219,6 +219,26 @@ func (c *Neo4jClient) AddReply(postId, userId, content string) (string, error) {
 	return replyId, nil
 }
 
+func (c *Neo4jClient) AddInfluence(fromUserID, postID, influenceType string) error {
+	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
+	defer session.Close(context.Background())
+
+	_, err := session.ExecuteWrite(context.Background(), func(tx neo4j.ManagedTransaction) (any, error) {
+		_, err := tx.Run(context.Background(), `
+			MATCH (from:User {id: $fromUserID})
+			MATCH (p:Post {id: $postID})
+			MERGE (from)-[i:INFLUENCED {type: $type}]->(p)
+		`, map[string]any{
+			"fromUserID": fromUserID,
+			"postID":     postID,
+			"type":       influenceType,
+		})
+		return nil, err
+	})
+
+	return err
+}
+
 func (c *Neo4jClient) GetReplies(postId string) ([]ReplyItem, error) {
 	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
 	defer session.Close(context.Background())
@@ -399,4 +419,200 @@ func (c *Neo4jClient) FollowUser(userId, targetUserId string) error {
 	})
 
 	return err
+}
+
+func (c *Neo4jClient) GetPostContent(postId string) (string, error) {
+	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
+	defer session.Close(context.Background())
+
+	result, err := session.ExecuteRead(context.Background(), func(tx neo4j.ManagedTransaction) (any, error) {
+		rec, err := tx.Run(context.Background(), `
+			MATCH (p:Post {id: $postId})
+			RETURN p.content AS content
+		`, map[string]any{"postId": postId})
+		if err != nil {
+			return nil, err
+		}
+		if !rec.Next(context.Background()) {
+			return nil, nil // Not found
+		}
+
+		record := rec.Record()
+		content, _ := record.Get("content")
+		return content.(string), nil
+	})
+	if err != nil {
+		return "", err
+	}
+	return result.(string), nil
+}
+
+func (c *Neo4jClient) GetInfluencedPostsLast24Hours(userId string) ([]InfluencedPost, error) {
+	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
+	defer session.Close(context.Background())
+
+	result, err := session.ExecuteRead(context.Background(), func(tx neo4j.ManagedTransaction) (any, error) {
+		records, err := tx.Run(context.Background(), `
+			MATCH (u:User {id: $userId})-[i:INFLUENCED]->(p:Post)
+			WHERE datetime() - duration('P1D') < datetime()
+			RETURN p.id AS postId, p.content AS content
+		`, map[string]any{"userId": userId})
+
+		if err != nil {
+			return nil, err
+		}
+
+		var posts []InfluencedPost
+		for records.Next(context.Background()) {
+			record := records.Record()
+			postId, _ := record.Get("postId")
+			content, _ := record.Get("content")
+
+			posts = append(posts, InfluencedPost{
+				PostID:  postId.(string),
+				Content: content.(string),
+			})
+		}
+
+		return posts, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return result.([]InfluencedPost), nil
+}
+
+func (c *Neo4jClient) AddSameTopicRelation(fromPostID, toPostID string) error {
+	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
+	defer session.Close(context.Background())
+
+	_, err := session.ExecuteWrite(context.Background(), func(tx neo4j.ManagedTransaction) (any, error) {
+		_, err := tx.Run(context.Background(), `
+			MATCH (p1:Post {id: $fromPostID})
+			MATCH (p2:Post {id: $toPostID})
+			MERGE (p1)-[r:SAME_TOPIC]->(p2)
+		`, map[string]any{
+			"fromPostID": fromPostID,
+			"toPostID":   toPostID,
+		})
+		return nil, err
+	})
+
+	return err
+}
+
+func (c *Neo4jClient) GetPostInfluence(postId string) (PostInfluence, error) {
+	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
+	defer session.Close(context.Background())
+
+	result, err := session.ExecuteRead(context.Background(), func(tx neo4j.ManagedTransaction) (any, error) {
+		records, err := tx.Run(context.Background(), `
+			MATCH (p:Post {id: $postId})
+			
+			// 1次の影響：投稿に直接INFLUENCEDされたユーザー
+			OPTIONAL MATCH (user1:User)-[i1:INFLUENCED]->(p)
+			
+			// 2次の影響：1次ユーザーの投稿で、元の投稿とSAME_TOPICの関係にある投稿にINFLUENCEDされたユーザー
+			OPTIONAL MATCH (user1)-[:POSTED]->(p1:Post)-[:SAME_TOPIC]->(p), (user2:User)-[i2:INFLUENCED]->(p1)
+			WHERE user2 <> user1
+			
+			// 3次の影響：2次ユーザーの投稿で、元の投稿とSAME_TOPICの関係にある投稿にINFLUENCEDされたユーザー
+			OPTIONAL MATCH (user2)-[:POSTED]->(p2:Post)-[:SAME_TOPIC]->(p), (user3:User)-[i3:INFLUENCED]->(p2)
+			WHERE user3 <> user2 AND user3 <> user1
+			
+			RETURN {
+				firstDegree: collect(DISTINCT {userId: user1.id, type: i1.type}),
+				secondDegree: collect(DISTINCT {userId: user2.id, type: i2.type, throughPostId: p1.id}),
+				thirdDegree: collect(DISTINCT {userId: user3.id, type: i3.type, throughPostId: p2.id})
+			} AS result
+		`, map[string]any{"postId": postId})
+
+		if err != nil {
+			return nil, err
+		}
+
+		if !records.Next(context.Background()) {
+			return PostInfluence{
+				FirstDegree:  []InfluenceUser{},
+				SecondDegree: []InfluenceUser{},
+				ThirdDegree:  []InfluenceUser{},
+			}, nil
+		}
+
+		record := records.Record()
+		resultMap, _ := record.Get("result")
+
+		influence := PostInfluence{
+			FirstDegree:  []InfluenceUser{},
+			SecondDegree: []InfluenceUser{},
+			ThirdDegree:  []InfluenceUser{},
+		}
+
+		if resultMap, ok := resultMap.(map[string]any); ok {
+			// Parse first degree
+			if firstDegree, ok := resultMap["firstDegree"].([]any); ok {
+				for _, item := range firstDegree {
+					if m, ok := item.(map[string]any); ok {
+						userId, _ := m["userId"].(string)
+						influenceType, _ := m["type"].(string)
+
+						if userId != "" && influenceType != "" {
+							influence.FirstDegree = append(influence.FirstDegree, InfluenceUser{
+								UserID: userId,
+								Type:   influenceType,
+							})
+						}
+					}
+				}
+			}
+
+			// Parse second degree
+			if secondDegree, ok := resultMap["secondDegree"].([]any); ok {
+				for _, item := range secondDegree {
+					if m, ok := item.(map[string]any); ok {
+						userId, _ := m["userId"].(string)
+						influenceType, _ := m["type"].(string)
+						throughPostId, _ := m["throughPostId"].(string)
+
+						if userId != "" && influenceType != "" {
+							influence.SecondDegree = append(influence.SecondDegree, InfluenceUser{
+								UserID:        userId,
+								Type:          influenceType,
+								ThroughPostID: throughPostId,
+							})
+						}
+					}
+				}
+			}
+
+			// Parse third degree
+			if thirdDegree, ok := resultMap["thirdDegree"].([]any); ok {
+				for _, item := range thirdDegree {
+					if m, ok := item.(map[string]any); ok {
+						userId, _ := m["userId"].(string)
+						influenceType, _ := m["type"].(string)
+						throughPostId, _ := m["throughPostId"].(string)
+
+						if userId != "" && influenceType != "" {
+							influence.ThirdDegree = append(influence.ThirdDegree, InfluenceUser{
+								UserID:        userId,
+								Type:          influenceType,
+								ThroughPostID: throughPostId,
+							})
+						}
+					}
+				}
+			}
+		}
+
+		return influence, nil
+	})
+
+	if err != nil {
+		return PostInfluence{}, err
+	}
+
+	return result.(PostInfluence), nil
 }
