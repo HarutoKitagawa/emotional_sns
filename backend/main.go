@@ -64,6 +64,14 @@ type EmotionTagsResponse struct {
 	EmotionTags []graphdb.EmotionTagOnly `json:"emotionTags"`
 }
 
+type FollowRequest struct {
+	TargetUserID string `json:"targetUserId"`
+}
+
+type FollowResponse struct {
+	Status string `json:"status"`
+}
+
 func main() {
 	// Initialize Neo4j client
 	client, err := graphdb.NewNeo4jClient(os.Getenv("NEO4J_URI"), "neo4j", "password")
@@ -90,9 +98,13 @@ func main() {
 		}
 	})
 	http.HandleFunc("/users/", func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasSuffix(r.URL.Path, "/feed") {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/feed"):
 			handleUserFeed(client)(w, r)
-			return
+		case strings.HasSuffix(r.URL.Path, "/follow"):
+			handleFollowUser(client)(w, r)
+		default:
+			http.NotFound(w, r)
 		}
 	})
 	http.HandleFunc("/emotion-tags", handleGetAllEmotionTags(client))
@@ -325,5 +337,37 @@ func handleGetAllEmotionTags(client graphdb.GraphDbClient) http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(resp)
+	}
+}
+
+func handleFollowUser(client graphdb.GraphDbClient) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		if len(parts) != 3 || parts[0] != "users" || parts[2] != "follow" {
+			http.Error(w, "Invalid path", http.StatusBadRequest)
+			return
+		}
+		userId := parts[1]
+
+		var req FollowRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.TargetUserID == "" {
+			http.Error(w, "Missing targetUserId", http.StatusBadRequest)
+			return
+		}
+
+		if err := client.FollowUser(userId, req.TargetUserID); err != nil {
+			log.Printf("Failed to follow: %v", err)
+			http.Error(w, "Failed to follow", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(FollowResponse{Status: "followed"})
 	}
 }
