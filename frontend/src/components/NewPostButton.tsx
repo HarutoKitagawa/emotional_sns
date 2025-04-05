@@ -3,11 +3,13 @@
 import { useState } from 'react';
 import { useCreatePost } from '../features/post/hooks';
 import { useFeedPosts } from '../features/post/hooks';
+import { useAuth } from '../features/auth/hooks';
 
 export default function NewPostButton() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [content, setContent] = useState('');
   const { createPost, isLoading, error } = useCreatePost();
+  const { user } = useAuth();
   const { mutate: refreshFeed } = useFeedPosts();
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -16,7 +18,7 @@ export default function NewPostButton() {
 
     try {
       // Using hardcoded userId=1 as specified in requirements
-      await createPost('1', content);
+      await createPost(user!.id, content);
       setContent('');
       setIsModalOpen(false);
       // Refresh the feed to show the new post

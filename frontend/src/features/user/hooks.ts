@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import useSWR from 'swr';
 import { createApiUrl } from '../../lib/fetcher';
 import { User, UserSession } from '../../types/user';
+import { useAuth } from '../auth/hooks';
 import {
   followUser,
   getCurrentUser,
@@ -84,7 +85,8 @@ export const useUserSession = (): UserSession => {
  * Hook for following/unfollowing a user
  */
 export const useFollowUser = (targetUserId: string) => {
-  const { data: currentUser } = useSWR<User>(createApiUrl('/users/me'));
+  // Use useAuth instead of direct SWR call to /users/me
+  const { user: currentUser } = useAuth();
   const [isFollowing, setIsFollowing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);

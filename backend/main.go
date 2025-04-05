@@ -13,6 +13,9 @@ import (
 	"github.com/google/uuid"
 )
 
+// JWT secret key
+var jwtSecret = []byte(os.Getenv("JWT_SECRET"))
+
 type PostRequest struct {
 	UserID  string `json:"userId"`
 	Content string `json:"content"`
@@ -86,6 +89,25 @@ type PostInfluenceSummary struct {
 	ByDegree   map[string]int `json:"byDegree"`
 }
 
+// Auth related types
+type RegisterRequest struct {
+	Username string `json:"username"`
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type LoginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type AuthResponse struct {
+	UserID   string `json:"userId"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
+	Token    string `json:"token"`
+}
+
 func main() {
 	// Initialize Neo4j client
 	client, err := graphdb.NewNeo4jClient(os.Getenv("NEO4J_URI"), "neo4j", "password")
@@ -94,6 +116,13 @@ func main() {
 	}
 	defer client.Close()
 
+	// Set JWT secret
+	if os.Getenv("JWT_SECRET") == "" {
+		log.Println("Warning: JWT_SECRET not set, using default secret")
+		jwtSecret = []byte("default_secret_key_for_development")
+	}
+
+	// Post related endpoints
 	http.HandleFunc("/posts", handleCreatePost(client))
 	http.HandleFunc("/posts/", func(w http.ResponseWriter, r *http.Request) {
 		switch {
@@ -113,6 +142,8 @@ func main() {
 			handleGetPost(client)(w, r)
 		}
 	})
+
+	// User related endpoints
 	http.HandleFunc("/users/", func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case strings.HasSuffix(r.URL.Path, "/feed"):
@@ -123,6 +154,13 @@ func main() {
 			http.NotFound(w, r)
 		}
 	})
+
+	// Auth related endpoints
+	http.HandleFunc("/auth/register", handleRegister(client))
+	http.HandleFunc("/auth/login", handleLogin(client))
+	http.HandleFunc("/auth/me", handleGetCurrentUser(client))
+
+	// Other endpoints
 	http.HandleFunc("/emotion-tags", handleGetAllEmotionTags(client))
 
 	fmt.Println("🚀 Server started on :8080")
@@ -528,5 +566,160 @@ func handleGetPostInfluence(client graphdb.GraphDbClient) http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(response)
+	}
+}
+
+// Authentication handlers
+
+// handleRegister handles user registration
+func handleRegister(client graphdb.GraphDbClient) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req RegisterRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		// Validate input
+		if req.Username == "" || req.Email == "" || req.Password == "" {
+			http.Error(w, "Username, email and password are required", http.StatusBadRequest)
+			return
+		}
+
+		// Create user in database
+		userId, err := client.CreateUser(req.Username, req.Email, req.Password)
+		if err != nil {
+			if err.Error() == "email already exists" {
+				http.Error(w, "Email already registered", http.StatusConflict)
+				return
+			}
+			log.Printf("Failed to create user: %v", err)
+			http.Error(w, "Failed to create user", http.StatusInternalServerError)
+			return
+		}
+
+		// Generate JWT token
+		token := "dummy-token-" + userId // Replace with actual JWT token generation
+
+		// Return response
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		json.NewEncoder(w).Encode(AuthResponse{
+			UserID:   userId,
+			Username: req.Username,
+			Email:    req.Email,
+			Token:    token,
+		})
+	}
+}
+
+// handleLogin handles user login
+func handleLogin(client graphdb.GraphDbClient) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		var req LoginRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		// Validate input
+		if req.Email == "" || req.Password == "" {
+			http.Error(w, "Email and password are required", http.StatusBadRequest)
+			return
+		}
+
+		// Validate credentials
+		userId, err := client.ValidateUserCredentials(req.Email, req.Password)
+		if err != nil {
+			http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+			return
+		}
+
+		// Get user details
+		user, err := client.GetUserByEmail(req.Email)
+		if err != nil {
+			log.Printf("Failed to get user: %v", err)
+			http.Error(w, "Failed to get user details", http.StatusInternalServerError)
+			return
+		}
+
+		// Generate JWT token
+		token := "dummy-token-" + userId // Replace with actual JWT token generation
+
+		// Return response
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(AuthResponse{
+			UserID:   userId,
+			Username: user.Username,
+			Email:    user.Email,
+			Token:    token,
+		})
+	}
+}
+
+// handleGetCurrentUser handles getting the current user from the token
+func handleGetCurrentUser(client graphdb.GraphDbClient) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		// Get token from Authorization header
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			http.Error(w, "Authorization header required", http.StatusUnauthorized)
+			return
+		}
+
+		// Extract token from "Bearer <token>"
+		tokenParts := strings.Split(authHeader, " ")
+		if len(tokenParts) != 2 || tokenParts[0] != "Bearer" {
+			http.Error(w, "Invalid Authorization header format", http.StatusUnauthorized)
+			return
+		}
+		tokenString := tokenParts[1]
+
+		// In a real implementation, we would validate the JWT token
+		// For now, we'll extract the user ID from our dummy token
+		if !strings.HasPrefix(tokenString, "dummy-token-") {
+			http.Error(w, "Invalid token", http.StatusUnauthorized)
+			return
+		}
+		userId := strings.TrimPrefix(tokenString, "dummy-token-")
+
+		// Get user by ID
+		user, err := client.GetUserById(userId)
+		if err != nil {
+			log.Printf("Failed to get user: %v", err)
+			http.Error(w, "Failed to get user details", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"id":             user.ID,
+			"username":       user.Username,
+			"email":          user.Email,
+			"displayName":    user.Username,                                       // Use username as displayName for now
+			"avatarUrl":      "https://ui-avatars.com/api/?name=" + user.Username, // Generate avatar from username
+			"bio":            "",                                                  // Empty bio for now
+			"followersCount": 0,                                                   // Default value
+			"followingCount": 0,                                                   // Default value
+			"emotionalProfile": map[string]interface{}{
+				"dominantEmotions": []string{"neutral"}, // Default emotion
+				"emotionalRange":   50,                  // Middle of the range (0-100)
+			},
+		})
 	}
 }

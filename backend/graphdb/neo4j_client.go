@@ -2,10 +2,12 @@ package graphdb
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type Neo4jClient struct {
@@ -615,4 +617,156 @@ func (c *Neo4jClient) GetPostInfluence(postId string) (PostInfluence, error) {
 	}
 
 	return result.(PostInfluence), nil
+}
+
+// CreateUser creates a new user with the given username, email, and password
+func (c *Neo4jClient) CreateUser(username, email, password string) (string, error) {
+	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
+	defer session.Close(context.Background())
+
+	userId := uuid.New().String()
+	createdAt := time.Now().UTC().Format(time.RFC3339)
+
+	// Hash the password
+	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		return "", err
+	}
+
+	_, err = session.ExecuteWrite(context.Background(), func(tx neo4j.ManagedTransaction) (any, error) {
+		// Check if email already exists
+		result, err := tx.Run(context.Background(), `
+			MATCH (u:User {email: $email})
+			RETURN count(u) as count
+		`, map[string]any{"email": email})
+		if err != nil {
+			return nil, err
+		}
+
+		if result.Next(context.Background()) {
+			count, _ := result.Record().Get("count")
+			if count.(int64) > 0 {
+				return nil, errors.New("email already exists")
+			}
+		}
+
+		// Create user
+		_, err = tx.Run(context.Background(), `
+			CREATE (u:User {
+				id: $userId,
+				username: $username,
+				email: $email,
+				password: $password,
+				createdAt: $createdAt
+			})
+			RETURN u.id
+		`, map[string]any{
+			"userId":    userId,
+			"username":  username,
+			"email":     email,
+			"password":  string(hashedPassword),
+			"createdAt": createdAt,
+		})
+		return nil, err
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	return userId, nil
+}
+
+// GetUserByEmail retrieves a user by email
+func (c *Neo4jClient) GetUserByEmail(email string) (AuthUser, error) {
+	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
+	defer session.Close(context.Background())
+
+	result, err := session.ExecuteRead(context.Background(), func(tx neo4j.ManagedTransaction) (any, error) {
+		result, err := tx.Run(context.Background(), `
+			MATCH (u:User {email: $email})
+			RETURN u.id, u.username, u.email, u.password
+		`, map[string]any{"email": email})
+		if err != nil {
+			return nil, err
+		}
+
+		if !result.Next(context.Background()) {
+			return nil, errors.New("user not found")
+		}
+
+		record := result.Record()
+		id, _ := record.Get("u.id")
+		username, _ := record.Get("u.username")
+		email, _ := record.Get("u.email")
+		password, _ := record.Get("u.password")
+
+		return AuthUser{
+			ID:       id.(string),
+			Username: username.(string),
+			Email:    email.(string),
+			Password: password.(string),
+		}, nil
+	})
+
+	if err != nil {
+		return AuthUser{}, err
+	}
+
+	return result.(AuthUser), nil
+}
+
+// GetUserById retrieves a user by ID
+func (c *Neo4jClient) GetUserById(userId string) (AuthUser, error) {
+	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
+	defer session.Close(context.Background())
+
+	result, err := session.ExecuteRead(context.Background(), func(tx neo4j.ManagedTransaction) (any, error) {
+		result, err := tx.Run(context.Background(), `
+			MATCH (u:User {id: $userId})
+			RETURN u.id, u.username, u.email, u.password
+		`, map[string]any{"userId": userId})
+		if err != nil {
+			return nil, err
+		}
+
+		if !result.Next(context.Background()) {
+			return nil, errors.New("user not found")
+		}
+
+		record := result.Record()
+		id, _ := record.Get("u.id")
+		username, _ := record.Get("u.username")
+		email, _ := record.Get("u.email")
+		password, _ := record.Get("u.password")
+
+		return AuthUser{
+			ID:       id.(string),
+			Username: username.(string),
+			Email:    email.(string),
+			Password: password.(string),
+		}, nil
+	})
+
+	if err != nil {
+		return AuthUser{}, err
+	}
+
+	return result.(AuthUser), nil
+}
+
+// ValidateUserCredentials validates user credentials and returns the user ID if valid
+func (c *Neo4jClient) ValidateUserCredentials(email, password string) (string, error) {
+	user, err := c.GetUserByEmail(email)
+	if err != nil {
+		return "", err
+	}
+
+	// Compare the provided password with the stored hash
+	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
+	if err != nil {
+		return "", errors.New("invalid credentials")
+	}
+
+	return user.ID, nil
 }
