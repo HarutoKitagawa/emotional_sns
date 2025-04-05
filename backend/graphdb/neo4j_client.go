@@ -2,6 +2,7 @@ package graphdb
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/neo4j/neo4j-go-driver/v5/neo4j"
@@ -27,16 +28,19 @@ func (c *Neo4jClient) CreatePostWithEmotions(userId, postId, content string, emo
 	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
 	defer session.Close(context.Background())
 
+	createdAt := time.Now().UTC().Format(time.RFC3339)
+
 	_, err := session.ExecuteWrite(context.Background(), func(tx neo4j.ManagedTransaction) (any, error) {
 		// UserとPostノードの作成
 		_, err := tx.Run(context.Background(), `
             MERGE (u:User {id: $userId})
-            CREATE (p:Post {id: $postId, content: $content})
+            CREATE (p:Post {id: $postId, content: $content, createdAt: $createdAt})
             MERGE (u)-[:POSTED]->(p)
         `, map[string]any{
-			"userId":  userId,
-			"postId":  postId,
-			"content": content,
+			"userId":    userId,
+			"postId":    postId,
+			"content":   content,
+			"createdAt": createdAt,
 		})
 		if err != nil {
 			return nil, err
@@ -66,7 +70,7 @@ func (c *Neo4jClient) CreatePostWithEmotions(userId, postId, content string, emo
 	return err
 }
 
-func (c *Neo4jClient) GetPostWithEmotions(postId string) (string, string, []EmotionTag, error) {
+func (c *Neo4jClient) GetPostWithEmotions(postId string) (string, string, string, []EmotionTag, error) {
 	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
 	defer session.Close(context.Background())
 
@@ -112,17 +116,18 @@ func (c *Neo4jClient) GetPostWithEmotions(postId string) (string, string, []Emot
 		}, nil
 	})
 	if err != nil {
-		return "", "", nil, err
+		return "", "", "", nil, err
 	}
 	if result == nil {
-		return "", "", nil, nil // Not found
+		return "", "", "", nil, nil // Not found
 	}
 	r := result.(struct {
-		UserID   string
-		Content  string
-		Emotions []EmotionTag
+		UserID    string
+		Content   string
+		CreatedAt string
+		Emotions  []EmotionTag
 	})
-	return r.UserID, r.Content, r.Emotions, nil
+	return r.UserID, r.Content, r.CreatedAt, r.Emotions, nil
 }
 
 func (c *Neo4jClient) GetReactions(postId string) (map[string]int, error) {
@@ -160,17 +165,20 @@ func (c *Neo4jClient) AddReaction(postId, userId, reactionType string) error {
 	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
 	defer session.Close(context.Background())
 
+	createdAt := time.Now().UTC().Format(time.RFC3339)
+
 	_, err := session.ExecuteWrite(context.Background(), func(tx neo4j.ManagedTransaction) (any, error) {
 		_, err := tx.Run(context.Background(), `
             MERGE (u:User {id: $userId})
 			WITH u
             MATCH (p:Post {id: $postId})
             MERGE (u)-[r:REACTED]->(p)
-            SET r.type = $type
+            SET r.type = $type, r.createdAt = $createdAt
         `, map[string]any{
-			"userId": userId,
-			"postId": postId,
-			"type":   reactionType,
+			"userId":    userId,
+			"postId":    postId,
+			"type":      reactionType,
+			"createdAt": createdAt,
 		})
 		return nil, err
 	})
@@ -184,19 +192,22 @@ func (c *Neo4jClient) AddReply(postId, userId, content string) (string, error) {
 
 	replyId := uuid.New().String()
 
+	createdAt := time.Now().UTC().Format(time.RFC3339)
+
 	_, err := session.ExecuteWrite(context.Background(), func(tx neo4j.ManagedTransaction) (any, error) {
 		_, err := tx.Run(context.Background(), `
 			MERGE (u:User {id: $userId})
 			WITH u
 			MATCH (p:Post {id: $postId})
-			CREATE (r:Reply {id: $replyId, content: $content})
+			CREATE (r:Reply {id: $replyId, content: $content, createdAt: $createdAt})
 			MERGE (u)-[:REPLIED]->(r)
 			MERGE (r)-[:REPLY_TO]->(p)
 		`, map[string]any{
-			"userId":  userId,
-			"postId":  postId,
-			"replyId": replyId,
-			"content": content,
+			"userId":    userId,
+			"postId":    postId,
+			"replyId":   replyId,
+			"content":   content,
+			"createdAt": createdAt,
 		})
 		return nil, err
 	})
@@ -215,7 +226,7 @@ func (c *Neo4jClient) GetReplies(postId string) ([]ReplyItem, error) {
 	result, err := session.ExecuteRead(context.Background(), func(tx neo4j.ManagedTransaction) (any, error) {
 		records, err := tx.Run(context.Background(), `
 			MATCH (u:User)-[:REPLIED]->(r:Reply)-[:REPLY_TO]->(p:Post {id: $postId})
-			RETURN r.id AS replyId, u.id AS userId, r.content AS content
+			RETURN r.id AS replyId, u.id AS userId, r.content, r.createdAt AS content
 			ORDER BY r.id
 		`, map[string]any{"postId": postId})
 		if err != nil {
@@ -226,9 +237,10 @@ func (c *Neo4jClient) GetReplies(postId string) ([]ReplyItem, error) {
 		for records.Next(context.Background()) {
 			rec := records.Record()
 			replies = append(replies, ReplyItem{
-				ReplyID: rec.Values[0].(string),
-				UserID:  rec.Values[1].(string),
-				Content: rec.Values[2].(string),
+				ReplyID:   rec.Values[0].(string),
+				UserID:    rec.Values[1].(string),
+				Content:   rec.Values[2].(string),
+				CreatedAt: rec.Values[3].(string),
 			})
 		}
 		return replies, nil
@@ -250,16 +262,18 @@ func (c *Neo4jClient) GetFeed(emotionFilter string) ([]FeedPost, error) {
 			MATCH (p:Post)<-[t:TAGGED]-(e:Emotion)
 			WHERE e.type = $emotion
 			MATCH (u:User)-[:POSTED]->(p)
-			RETURN p.id AS postId, p.content AS content, u.id AS userId,
+			RETURN p.id AS postId, p.content AS content, u.id AS userId, p.createdAt AS createdAt,
 			       collect({type: e.type, score: t.score}) AS emotions
+			ORDER BY p.createdAt DESC
 		`
 		params["emotion"] = emotionFilter
 	} else {
 		query = `
 			MATCH (u:User)-[:POSTED]->(p:Post)
 			OPTIONAL MATCH (e:Emotion)-[t:TAGGED]->(p)
-			RETURN p.id AS postId, p.content AS content, u.id AS userId,
+			RETURN p.id AS postId, p.content AS content, u.id AS userId, p.createdAt AS createdAt,
 			       collect({type: e.type, score: t.score}) AS emotions
+			ORDER BY p.createdAt DESC
 		`
 	}
 
@@ -272,7 +286,7 @@ func (c *Neo4jClient) GetFeed(emotionFilter string) ([]FeedPost, error) {
 		var posts []FeedPost
 		for records.Next(context.Background()) {
 			rec := records.Record()
-			emotionsRaw := rec.Values[3].([]any)
+			emotionsRaw := rec.Values[4].([]any)
 			var emotions []EmotionTag
 			for _, e := range emotionsRaw {
 				if m, ok := e.(map[string]any); ok {
@@ -286,6 +300,7 @@ func (c *Neo4jClient) GetFeed(emotionFilter string) ([]FeedPost, error) {
 				PostID:      rec.Values[0].(string),
 				Content:     rec.Values[1].(string),
 				UserID:      rec.Values[2].(string),
+				CreatedAt:   rec.Values[3].(string),
 				EmotionTags: emotions,
 			})
 		}

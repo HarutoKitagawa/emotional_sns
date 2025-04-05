@@ -32,6 +32,7 @@ type GetPostResponse struct {
 	PostID         string               `json:"postId"`
 	UserID         string               `json:"userId"`
 	Content        string               `json:"content"`
+	CreatedAt      string               `json:"createdAt"`
 	EmotionTags    []graphdb.EmotionTag `json:"emotionTags"`
 	ReactionCounts map[string]int       `json:"reactionCounts"`
 }
@@ -138,7 +139,7 @@ func handleGetPost(client graphdb.GraphDbClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		postId := strings.TrimPrefix(r.URL.Path, "/posts/")
 
-		userId, content, emotions, err := client.GetPostWithEmotions(postId)
+		userId, content, createdAt, emotions, err := client.GetPostWithEmotions(postId)
 		if err != nil {
 			http.Error(w, "Database error", http.StatusInternalServerError)
 			return
@@ -159,6 +160,7 @@ func handleGetPost(client graphdb.GraphDbClient) http.HandlerFunc {
 			UserID:         userId,
 			Content:        content,
 			EmotionTags:    emotions,
+			CreatedAt:      createdAt,
 			ReactionCounts: reactions,
 		}
 
