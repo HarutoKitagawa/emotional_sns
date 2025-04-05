@@ -163,3 +163,22 @@ export const getUserFollowers = async (userId: string): Promise<User[]> => {
 export const getUserFollowing = async (userId: string): Promise<User[]> => {
   return fetcher<User[]>(createApiUrl(`/users/${userId}/following`));
 };
+
+/**
+ * ===== Emotion Tags API =====
+ */
+
+/**
+ * Get all available emotion tags
+ */
+export const getEmotionTags = async (): Promise<string[]> => {
+  console.log('Fetching emotion tags');
+  try {
+    const tags = await fetcher<string[]>('/api/emotion-tags');
+    console.log('Emotion tags fetched:', tags);
+    return tags;
+  } catch (error) {
+    console.error('Error fetching emotion tags:', error);
+    throw error;
+  }
+};
