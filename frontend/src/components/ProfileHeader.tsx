@@ -1,6 +1,6 @@
 'use client';
 import { User } from '../types/user';
-import { useUser, useFollowUser, useUserSession } from '../features/user/hooks';
+import { useFollowUser, useUserSession } from '../features/user/hooks';
 import { getEmotionColor } from '../lib/utils';
 
 // Mock data for demonstration purposes

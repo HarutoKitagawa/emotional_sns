@@ -43,6 +43,14 @@ type PostInfluence struct {
 	ThirdDegree  []InfluenceUser `json:"thirdDegree"`
 }
 
+// AuthUser contains basic user authentication information
+type AuthUser struct {
+	ID       string `json:"id"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
+	Password string `json:"-"` // Password is never returned in JSON
+}
+
 type GraphDbClient interface {
 	CreatePostWithEmotions(userId, postId, content string, emotions []EmotionTag) error
 	GetPostWithEmotions(postId string) (userId, content, createdAt string, emotions []EmotionTag, err error)
@@ -58,5 +66,12 @@ type GraphDbClient interface {
 	GetInfluencedPostsLast24Hours(userId string) ([]InfluencedPost, error)
 	AddSameTopicRelation(fromPostID, toPostID string) error
 	GetPostInfluence(postId string) (PostInfluence, error)
+
+	// User authentication methods
+	CreateUser(username, email, password string) (string, error)
+	GetUserByEmail(email string) (AuthUser, error)
+	GetUserById(userId string) (AuthUser, error)
+	ValidateUserCredentials(email, password string) (string, error)
+
 	Close() error
 }

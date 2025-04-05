@@ -4,7 +4,6 @@ import { Post } from '../types/post';
 import UserAvatar from './UserAvatar';
 import { formatDate, getDominantEmotion, getEmotionColor } from '../lib/utils';
 import { usePost, useAddReaction } from '../features/post/hooks';
-import { useUser } from '../features/user/hooks';
 
 // Mock data for demonstration purposes
 const MOCK_USER: User = {

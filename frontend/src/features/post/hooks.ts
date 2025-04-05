@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import useSWR from 'swr';
 import { createApiUrl } from '../../lib/fetcher';
+import { useAuth } from '../auth/hooks';
 import { EmotionalImpact, Post, Reply, ReactionType } from '../../types/post';
 import {
   addReaction,
@@ -21,10 +22,9 @@ export const usePost = (postId: string) => {
  * Hook for fetching feed posts
  */
 export const useFeedPosts = () => {
-  const url = `/api/users/1/feed`; // ← Next.jsのAPIルートに変更！
-  console.log("Fetching feed posts", url);
+  const { user } = useAuth();
 
-  return useSWR<Post[]>(url, async (url: string) => {
+  return useSWR<Post[]>(user ? `/api/users/${user.id}/feed` : null, async (url: string) => {
     try {
       console.log("Starting fetch for feed posts");
       const response = await fetch(url);
@@ -46,9 +46,6 @@ export const useFeedPosts = () => {
         
         if (Array.isArray(data)) {
           console.log("Feed data array length:", data.length);
-          if (data.length > 0) {
-            console.log("First post sample:", JSON.stringify(data[0]));
-          }
         } else if (data.posts) {
           console.log("Feed data.posts is array:", Array.isArray(data.posts));
           if (Array.isArray(data.posts)) {
