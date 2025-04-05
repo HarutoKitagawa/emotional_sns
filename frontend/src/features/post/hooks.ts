@@ -3,12 +3,13 @@ import { useState } from 'react';
 import useSWR from 'swr';
 import { createApiUrl } from '../../lib/fetcher';
 import { useAuth } from '../auth/hooks';
-import { EmotionalImpact, Post, Reply, ReactionType } from '../../types/post';
+import { EmotionalImpact, Post, PostInfluence, Reply, ReactionType } from '../../types/post';
 import {
   addReaction,
   addReply,
   createPost,
   getEmotionalImpact,
+  getPostInfluence,
   getReplies,
   getFeedPosts,
   getPostDetail,
@@ -211,6 +212,16 @@ export const usePostReplies = (postId: string) => {
 export const useEmotionalImpact = (postId: string) => {
   return useSWR<EmotionalImpact>(
     postId ? createApiUrl(`/posts/${postId}/impact`) : null
+  );
+};
+
+/**
+ * Hook for fetching post influence
+ */
+export const usePostInfluence = (postId: string) => {
+  return useSWR<PostInfluence>(
+    postId ? `/posts/${postId}/influence` : null,
+    () => getPostInfluence(postId)
   );
 };
 

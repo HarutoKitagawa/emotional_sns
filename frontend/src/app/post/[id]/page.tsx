@@ -4,7 +4,7 @@ import Link from 'next/link';
 import PostDetail from '../../../components/PostDetail';
 import ReplyForm from '../../../components/ReplyForm';
 import ReplyList from '../../../components/ReplyList';
-import EmotionalImpactChart from '../../../components/EmotionalImpactChart';
+import EmotionalInfluenceGraph from '../../../components/EmotionalInfluenceGraph';
 
 interface PostPageProps {
   params: Promise<{
@@ -64,7 +64,7 @@ export default async function PostPage({ params }: PostPageProps) {
         <div className="sticky top-20">
           <h2 className="text-xl font-bold mb-4">感情的影響</h2>
           <Suspense fallback={<div>データを読み込み中...</div>}>
-            <EmotionalImpactChart postId={id} />
+            <EmotionalInfluenceGraph postId={id} />
           </Suspense>
           
           <div className="mt-8 p-4 bg-white dark:bg-gray-800 rounded-lg shadow">

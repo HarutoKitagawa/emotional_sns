@@ -1,4 +1,4 @@
-import { EmotionalImpact, Post, Reply, ReactionType } from '../types/post';
+import { EmotionalImpact, Post, PostInfluence, Reply, ReactionType } from '../types/post';
 import { User } from '../types/user';
 import { createApiUrl, fetcher } from './fetcher';
 
@@ -92,6 +92,13 @@ export const getReplies = async (postId: string): Promise<Reply[]> => {
  */
 export const getEmotionalImpact = async (postId: string): Promise<EmotionalImpact> => {
   return fetcher<EmotionalImpact>(createApiUrl(`/posts/${postId}/impact`));
+};
+
+/**
+ * Get post influence data
+ */
+export const getPostInfluence = async (postId: string): Promise<PostInfluence> => {
+  return fetcher<PostInfluence>(`/api/posts/${postId}/influence`);
 };
 
 /**
