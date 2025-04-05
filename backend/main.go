@@ -127,7 +127,7 @@ func handleCreatePost(client graphdb.GraphDbClient) http.HandlerFunc {
 		}
 
 		// Call emotion analysis API
-		emotions, err := analyzeEmotion(req.Content)
+		emotions, err := analyzeEmotionOfPost(req.Content)
 		if err != nil {
 			http.Error(w, "Emotion analysis failed", http.StatusInternalServerError)
 			return
@@ -215,27 +215,15 @@ func handleAddReaction(client graphdb.GraphDbClient) http.HandlerFunc {
 			return
 		}
 
+		// Register influence
+		if err := client.AddInfluence(req.UserID, postId, req.Type); err != nil {
+			log.Printf("Failed to register influence: %v", err)
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(map[string]string{"status": "reaction added"})
 	}
-}
-
-func analyzeEmotion(content string) ([]graphdb.EmotionTag, error) {
-	api := os.Getenv("EMOTION_API")
-	body, _ := json.Marshal(map[string]string{"content": content})
-	resp, err := http.Post(api+"/analyze", "application/json", bytes.NewBuffer(body))
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	var result []graphdb.EmotionTag
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, err
-	}
-
-	return result, nil
 }
 
 func handleAddReply(client graphdb.GraphDbClient) http.HandlerFunc {
@@ -258,6 +246,24 @@ func handleAddReply(client graphdb.GraphDbClient) http.HandlerFunc {
 		if err != nil {
 			http.Error(w, "Database error", http.StatusInternalServerError)
 			return
+		}
+
+		postConstent, err := client.GetPostContent(postId)
+		if err != nil {
+			http.Error(w, "Failed to get post content", http.StatusInternalServerError)
+			return
+		}
+		emotionResp, err := analyzeEmotionOfReply(postConstent, req.Content)
+		if err != nil {
+			http.Error(w, "Emotion analysis failed", http.StatusInternalServerError)
+			return
+		}
+
+		// Register influence for each emotion
+		for _, emotion := range emotionResp {
+			if err := client.AddInfluence(req.UserID, postId, emotion.Type); err != nil {
+				log.Printf("Failed to register influence: %v", err)
+			}
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -370,4 +376,38 @@ func handleFollowUser(client graphdb.GraphDbClient) http.HandlerFunc {
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(FollowResponse{Status: "followed"})
 	}
+}
+
+func analyzeEmotionOfPost(content string) ([]graphdb.EmotionTag, error) {
+	api := os.Getenv("EMOTION_API")
+	body, _ := json.Marshal(map[string]string{"content": content})
+	resp, err := http.Post(api+"/analyze_post", "application/json", bytes.NewBuffer(body))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var result []graphdb.EmotionTag
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func analyzeEmotionOfReply(post string, reply string) ([]graphdb.EmotionTag, error) {
+	api := os.Getenv("EMOTION_API")
+	body, _ := json.Marshal(map[string]string{"post": post, "reply": reply})
+	resp, err := http.Post(api+"/analyze_reply", "application/json", bytes.NewBuffer(body))
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var result []graphdb.EmotionTag
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, err
+	}
+
+	return result, nil
 }

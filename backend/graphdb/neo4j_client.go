@@ -219,6 +219,26 @@ func (c *Neo4jClient) AddReply(postId, userId, content string) (string, error) {
 	return replyId, nil
 }
 
+func (c *Neo4jClient) AddInfluence(fromUserID, postID, influenceType string) error {
+	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
+	defer session.Close(context.Background())
+
+	_, err := session.ExecuteWrite(context.Background(), func(tx neo4j.ManagedTransaction) (any, error) {
+		_, err := tx.Run(context.Background(), `
+			MATCH (from:User {id: $fromUserID})
+			MATCH (p:Post {id: $postID})
+			MERGE (from)-[i:INFLUENCED {type: $type}]->(p)
+		`, map[string]any{
+			"fromUserID": fromUserID,
+			"postID":     postID,
+			"type":       influenceType,
+		})
+		return nil, err
+	})
+
+	return err
+}
+
 func (c *Neo4jClient) GetReplies(postId string) ([]ReplyItem, error) {
 	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
 	defer session.Close(context.Background())
@@ -399,4 +419,30 @@ func (c *Neo4jClient) FollowUser(userId, targetUserId string) error {
 	})
 
 	return err
+}
+
+func (c *Neo4jClient) GetPostContent(postId string) (string, error) {
+	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
+	defer session.Close(context.Background())
+
+	result, err := session.ExecuteRead(context.Background(), func(tx neo4j.ManagedTransaction) (any, error) {
+		rec, err := tx.Run(context.Background(), `
+			MATCH (p:Post {id: $postId})
+			RETURN p.content AS content
+		`, map[string]any{"postId": postId})
+		if err != nil {
+			return nil, err
+		}
+		if !rec.Next(context.Background()) {
+			return nil, nil // Not found
+		}
+
+		record := rec.Record()
+		content, _ := record.Get("content")
+		return content.(string), nil
+	})
+	if err != nil {
+		return "", err
+	}
+	return result.(string), nil
 }

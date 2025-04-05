@@ -32,9 +32,11 @@ type GraphDbClient interface {
 	GetReactions(postId string) (map[string]int, error)
 	AddReaction(postId, userId, reactionType string) error
 	AddReply(postId, userId, content string) (replyId string, err error)
+	AddInfluence(fromUserID, postID, influenceType string) error
 	GetReplies(postId string) ([]ReplyItem, error)
 	GetFeed(emotionFilter string) ([]FeedPost, error)
 	GetAllEmotionTags() ([]EmotionTagOnly, error)
 	FollowUser(userId, targetUserId string) error
+	GetPostContent(postId string) (content string, err error)
 	Close() error
 }
