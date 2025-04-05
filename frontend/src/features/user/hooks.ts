@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import useSWR from 'swr';
 import { createApiUrl } from '../../lib/fetcher';
 import { User, UserSession } from '../../types/user';
+import { Post } from '../../types/post';
 import { useAuth } from '../auth/hooks';
 import {
   followUser,
@@ -81,6 +82,60 @@ export const useUserFollowing = (userId: string) => {
         return response.json();
       } catch (error) {
         console.error("Error in useUserFollowing:", error);
+        throw error;
+      }
+    }
+  );
+};
+
+/**
+ * Hook for fetching user posts
+ */
+export const useUserPosts = (userId: string) => {
+  return useSWR<Post[]>(
+    userId ? `/api/users/${userId}/posts` : null,
+    async (url: string) => {
+      try {
+        console.log("Starting fetch for user posts");
+        const response = await fetch(url);
+        
+        console.log("User posts API response status:", response.status);
+        
+        if (!response.ok) {
+          console.error("User posts API error:", response.status, response.statusText);
+          throw new Error(`Failed to fetch user posts: ${response.status} ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log("User posts data received:", data);
+        
+        // Handle different response formats
+        if (data && data.posts && Array.isArray(data.posts)) {
+          return data.posts.map((post: any) => ({
+            id: post.postId || post.id,
+            userId: post.userId,
+            content: post.content,
+            createdAt: post.createdAt,
+            emotionTags: Array.isArray(post.emotionTags) 
+              ? post.emotionTags.map((tag: any) => ({
+                  type: tag.emotion || tag.type,
+                  score: tag.score
+                }))
+              : [],
+            reactionCounts: post.reactions || post.reactionCounts || {
+              like: 0,
+              love: 0,
+              cry: 0,
+              angry: 0,
+              wow: 0
+            },
+            replyCount: post.replyCount || 0
+          }));
+        }
+        
+        return [];
+      } catch (error) {
+        console.error("Error in useUserPosts:", error);
         throw error;
       }
     }

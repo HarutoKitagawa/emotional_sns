@@ -150,8 +150,16 @@ func main() {
 			handleUserFeed(client)(w, r)
 		case strings.HasSuffix(r.URL.Path, "/follow"):
 			handleFollowUser(client)(w, r)
+		case strings.HasSuffix(r.URL.Path, "/posts"):
+			handleUserPosts(client)(w, r)
 		default:
-			http.NotFound(w, r)
+			// Check if it's a direct user ID request
+			parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+			if len(parts) == 2 && parts[0] == "users" {
+				handleGetUser(client)(w, r)
+			} else {
+				http.NotFound(w, r)
+			}
 		}
 	})
 
@@ -566,6 +574,62 @@ func handleGetPostInfluence(client graphdb.GraphDbClient) http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(response)
+	}
+}
+
+// handleGetUser handles getting user details by ID
+func handleGetUser(client graphdb.GraphDbClient) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		if len(parts) != 2 || parts[0] != "users" {
+			http.Error(w, "Invalid path", http.StatusBadRequest)
+			return
+		}
+		userId := parts[1]
+
+		userDetails, err := client.GetUserWithDetails(userId)
+		if err != nil {
+			log.Printf("Failed to get user details: %v", err)
+			http.Error(w, "Failed to get user details", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(userDetails)
+	}
+}
+
+// handleUserPosts handles getting posts by a specific user
+func handleUserPosts(client graphdb.GraphDbClient) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		if len(parts) != 3 || parts[0] != "users" || parts[2] != "posts" {
+			http.Error(w, "Invalid path", http.StatusBadRequest)
+			return
+		}
+		userId := parts[1]
+
+		posts, err := client.GetUserPosts(userId)
+		if err != nil {
+			log.Printf("Failed to get user posts: %v", err)
+			http.Error(w, "Failed to get user posts", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"posts": posts,
+		})
 	}
 }
 

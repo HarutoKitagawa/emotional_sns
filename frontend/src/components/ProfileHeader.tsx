@@ -1,40 +1,18 @@
 'use client';
 import { User } from '../types/user';
-import { useFollowUser, useUserSession } from '../features/user/hooks';
+import { useFollowUser, useUserSession, useUser } from '../features/user/hooks';
 import { getEmotionColor } from '../lib/utils';
-
-// Mock data for demonstration purposes
-const MOCK_USER: User = {
-  id: 'user1',
-  username: 'yamada_taro',
-  displayName: '山田太郎',
-  avatarUrl: 'https://i.pravatar.cc/150?img=1',
-  bio: '東京在住のエンジニア。趣味は写真と旅行。感情分析に興味があります。',
-  followersCount: 120,
-  followingCount: 85,
-  emotionalProfile: {
-    dominantEmotions: ['joy', 'surprise'],
-    emotionalRange: 75,
-  },
-};
 
 interface ProfileHeaderProps {
   userId: string;
 }
 
 export default function ProfileHeader({ userId }: ProfileHeaderProps) {
-  // In a real app, we would use these hooks
-  // const { data: user, error, isLoading } = useUser(userId);
-  // const { user: currentUser, isLoggedIn } = useUserSession();
-  // const { isFollowing, follow, unfollow, isLoading: isFollowLoading } = useFollowUser(userId);
+  const { data: user, error, isLoading } = useUser(userId);
+  const { user: currentUser, isLoggedIn } = useUserSession();
+  const { isFollowing, follow, unfollow, isLoading: isFollowLoading } = useFollowUser(userId);
   
-  // For now, we'll use mock data
-  const user = MOCK_USER;
-  const isLoading = false;
-  const error = null;
-  const isFollowing = false;
-  const isFollowLoading = false;
-  const isCurrentUser = false;
+  const isCurrentUser = currentUser?.id === userId;
   
   const handleFollowClick = async () => {
     // In a real app, we would call this
