@@ -22,14 +22,14 @@ paths:
                 content:
                   type: string
       responses:
-        '201':
+        "201":
           description: Post created successfully
           content:
             application/json:
               example:
                 postId: "abc123"
                 status: "created"
-        '400':
+        "400":
           description: Invalid request
           content:
             application/json:
@@ -46,7 +46,7 @@ paths:
           schema:
             type: string
       responses:
-        '200':
+        "200":
           description: Post details returned
           content:
             application/json:
@@ -54,8 +54,16 @@ paths:
                 postId: "abc123"
                 userId: "user123"
                 content: "今日の気分は晴れですぴょん"
-                emotionTag: "joy"
-        '404':
+                emotionTags:
+                  - type: "joy"
+                    score: 0.95
+                  - type: "surprise"
+                    score: 0.75
+                reactionCounts:
+                  like: 5
+                  love: 3
+                  cry: 1
+        "404":
           description: Post not found
           content:
             application/json:
@@ -84,13 +92,13 @@ paths:
                   type: string
                   enum: [like, love, cry, angry, wow]
       responses:
-        '201':
+        "201":
           description: Reaction added
           content:
             application/json:
               example:
                 status: "reaction added"
-        '400':
+        "400":
           description: Invalid input
           content:
             application/json:
@@ -118,17 +126,15 @@ paths:
                 content:
                   type: string
       responses:
-        '201':
+        "201":
           description: Reply created
           content:
             application/json:
               example:
                 replyId: "r123"
                 status: "reply created"
-
-  /posts/{postId}/impact:
     get:
-      summary: Get emotional impact report (1st to 3rd degree)
+      summary: Get list of replies to a post
       parameters:
         - name: postId
           in: path
@@ -136,39 +142,58 @@ paths:
           schema:
             type: string
       responses:
-        '200':
-          description: Emotional impact report
+        "200":
+          description: List of replies
           content:
             application/json:
               example:
-                reachedUsers: 120
-                joyCount: 45
-                sadnessCount: 12
-                spreadDepth: 3
-        '404':
-          description: Post not found or no impact data yet
-          content:
-            application/json:
-              example:
-                error: "No impact data available"
+                replies:
+                  - replyId: "r1"
+                    userId: "user1"
+                    content: "わかります！"
+                  - replyId: "r2"
+                    userId: "user2"
+                    content: "それな～"
 
   /emotion-tags:
     get:
-      summary: Get emotion tags ranked by relevance for a given post
-      parameters:
-        - name: postId
-          in: query
-          required: true
-          schema:
-            type: string
+      summary: Get all current emotion tags registered in the system
       responses:
-        '200':
-          description: Emotion tags returned
+        "200":
+          description: All emotion tags returned
           content:
             application/json:
               example:
                 emotionTags:
                   - type: joy
-                    score: 0.85
+                  - type: sadness
+                  - type: anger
                   - type: surprise
-                    score: 0.6
+
+  /users/{userId}/feed:
+    get:
+      summary: Get user's post feed, optionally filtered by emotion
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: emotion
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of feed posts
+          content:
+            application/json:
+              example:
+                posts:
+                  - postId: "abc123"
+                    userId: "userX"
+                    content: "今日は最高！"
+                    emotionTags:
+                      - type: "joy"
+                        score: 0.9
