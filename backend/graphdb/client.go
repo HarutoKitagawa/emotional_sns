@@ -35,5 +35,6 @@ type GraphDbClient interface {
 	GetReplies(postId string) ([]ReplyItem, error)
 	GetFeed(emotionFilter string) ([]FeedPost, error)
 	GetAllEmotionTags() ([]EmotionTagOnly, error)
+	FollowUser(userId, targetUserId string) error
 	Close() error
 }

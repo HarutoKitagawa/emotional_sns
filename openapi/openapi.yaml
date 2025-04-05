@@ -197,3 +197,28 @@ paths:
                     emotionTags:
                       - type: "joy"
                         score: 0.9
+  /users/{userId}/follow:
+    post:
+      summary: Follow another user
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                targetUserId:
+                  type: string
+      responses:
+        "201":
+          description: Followed successfully
+          content:
+            application/json:
+              example:
+                status: "followed"

@@ -381,3 +381,22 @@ func (c *Neo4jClient) GetAllEmotionTags() ([]EmotionTagOnly, error) {
 	}
 	return result.([]EmotionTagOnly), nil
 }
+
+func (c *Neo4jClient) FollowUser(userId, targetUserId string) error {
+	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
+	defer session.Close(context.Background())
+
+	_, err := session.ExecuteWrite(context.Background(), func(tx neo4j.ManagedTransaction) (any, error) {
+		_, err := tx.Run(context.Background(), `
+			MERGE (u1:User {id: $userId})
+			MERGE (u2:User {id: $targetUserId})
+			MERGE (u1)-[:FOLLOWS]->(u2)
+		`, map[string]any{
+			"userId":       userId,
+			"targetUserId": targetUserId,
+		})
+		return nil, err
+	})
+
+	return err
+}
