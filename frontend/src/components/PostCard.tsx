@@ -37,6 +37,7 @@ export default function PostCard({ post, user, preview = false }: PostCardProps)
     { type: 'angry', emoji: '😡' },
     { type: 'wow', emoji: '😮' },
   ];
+  console.log('emotionTags:', post.emotionTags);
 
   return (
   <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 mb-4">
@@ -49,17 +50,25 @@ export default function PostCard({ post, user, preview = false }: PostCardProps)
             {formatDate(post.createdAt)}
           </span>
           
-          {dominantEmotion && (
-            <span 
-              className="text-xs px-2 py-1 rounded-full" 
-              style={{ 
-                backgroundColor: `${emotionColor}20`, 
-                color: emotionColor 
-              }}
-            >
-              {dominantEmotion}
-            </span>
-          )}
+          <div className="flex justify-end flex-wrap gap-1">
+            {post.emotionTags.map(({ type, score }) => {
+              const color = getEmotionColor(type);
+              return (
+                <span
+                  key={type}
+                  className="text-xs px-2 py-1 rounded-full"
+                  style={{
+                    backgroundColor: `${color}40`,
+                    color: color,
+                  }}
+                >
+                  {type} ({(score * 100).toFixed(0)}%)
+                </span>
+              );
+            })}
+          </div>
+
+
         </div>
         
         <div className="mb-3 whitespace-pre-line">
