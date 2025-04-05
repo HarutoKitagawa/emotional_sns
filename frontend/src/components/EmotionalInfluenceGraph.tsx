@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { usePostInfluence } from '../features/post/hooks';
 import { useUser } from '../features/user/hooks';
 import { getEmotionColor } from '../lib/utils';
@@ -48,21 +49,21 @@ export default function EmotionalInfluenceGraph({ postId }: EmotionalInfluenceGr
         {/* 1次の影響 */}
         <InfluenceCircle 
           users={influence.firstDegree} 
-          radius={80} 
+          radius={50} 
           degree={1}
         />
         
         {/* 2次の影響 */}
         <InfluenceCircle 
           users={influence.secondDegree} 
-          radius={120} 
+          radius={80} 
           degree={2}
         />
         
         {/* 3次の影響 */}
         <InfluenceCircle 
           users={influence.thirdDegree} 
-          radius={160} 
+          radius={110} 
           degree={3}
         />
       </div>
@@ -142,18 +143,18 @@ function InfluenceCircle({ users, radius, degree }: InfluenceCircleProps) {
             title={`ユーザーID: ${user.userId}, 反応: ${user.type}`}
           >
             <div 
-              className="w-full h-full rounded-full flex items-center justify-center text-white text-xs"
+              className="w-full h-full rounded-full flex items-center justify-center text-black text-xs"
               style={{ backgroundColor: getReactionColor(user.type) }}
             >
-              {getReactionEmoji(user.type)}
+              {user.type}
             </div>
             
             {/* 中心から現在のノードへの線 */}
             <div 
-              className="absolute top-1/2 left-1/2 origin-left border-t border-gray-300 dark:border-gray-600 z-0"
+              className="absolute top-1/2 left-1/2 origin-left border-t border-gray-600 dark:border-gray-300 z-0"
               style={{ 
                 width: `${radius}px`,
-                transform: `rotate(${angle}rad) translateY(-50%)`,
+                transform: `rotate(${angle + Math.PI}rad) translateY(-50%)`,
               }}
             ></div>
           </div>
