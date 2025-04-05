@@ -292,34 +292,49 @@ func (c *Neo4jClient) GetFeed(emotionFilter string) ([]FeedPost, error) {
 			WHERE e.type = $emotion
 			WITH DISTINCT p
 			MATCH (u:User)-[:POSTED]->(p)
+
 			OPTIONAL MATCH (e2:Emotion)-[tag:TAGGED]->(p)
+			WITH p, u, collect(DISTINCT {type: e2.type, score: tag.score}) AS emotions
+
 			OPTIONAL MATCH (reactor:User)-[r:REACTED]->(p)
+			WITH p, u, emotions, collect({type: r.type}) AS reactions
+
 			OPTIONAL MATCH (replier:User)-[:REPLIED]->(reply:Reply)-[:REPLY_TO]->(p)
+			WITH p, u, emotions, reactions, count(DISTINCT reply) AS replyCount
+
 			RETURN 
 				p.id AS postId,
 				p.content AS content,
 				u.id AS userId,
 				p.createdAt AS createdAt,
-				collect(DISTINCT {type: e2.type, score: tag.score}) AS emotions,
-				collect(DISTINCT {type: r.type}) AS reactions,
-				count(DISTINCT reply) AS replyCount
+				emotions,
+				reactions,
+				replyCount
 			ORDER BY p.createdAt DESC
+
 		`
 		params["emotion"] = emotionFilter
 	} else {
 		query = `
 			MATCH (u:User)-[:POSTED]->(p:Post)
+
 			OPTIONAL MATCH (e:Emotion)-[t:TAGGED]->(p)
+			WITH u, p, collect(DISTINCT {type: e.type, score: t.score}) AS emotions
+
 			OPTIONAL MATCH (reactor:User)-[r:REACTED]->(p)
+			WITH u, p, emotions, collect({type: r.type}) AS reactions
+
 			OPTIONAL MATCH (replier:User)-[:REPLIED]->(reply:Reply)-[:REPLY_TO]->(p)
+			WITH u, p, emotions, reactions, count(DISTINCT reply) AS replyCount
+
 			RETURN 
 				p.id AS postId,
 				p.content AS content,
 				u.id AS userId,
 				p.createdAt AS createdAt,
-				collect(DISTINCT {type: e.type, score: t.score}) AS emotions,
-				collect(DISTINCT {type: r.type}) AS reactions,
-				count(DISTINCT reply) AS replyCount
+				emotions,
+				reactions,
+				replyCount
 			ORDER BY p.createdAt DESC
 		`
 	}
