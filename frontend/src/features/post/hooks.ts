@@ -1,3 +1,4 @@
+"use client";
 import { useState } from 'react';
 import useSWR from 'swr';
 import { createApiUrl } from '../../lib/fetcher';
@@ -192,8 +193,17 @@ export const useUserPosts = (userId: string) => {
  * Hook for fetching post replies
  */
 export const usePostReplies = (postId: string) => {
-  return useSWR<Reply[]>(postId ? createApiUrl(`/posts/${postId}/replies`) : null);
+  return useSWR<Reply[]>(
+    postId ? `/api/posts/${postId}/replies` : null,
+    async (url: string) => {
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Failed to fetch replies');
+      const data = await res.json();
+      return data.replies; // ← Goバックエンド準拠
+    }
+  );
 };
+
 
 /**
  * Hook for fetching emotional impact
