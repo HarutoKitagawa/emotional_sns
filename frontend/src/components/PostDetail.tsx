@@ -1,9 +1,11 @@
 'use client';
-import { User } from '../types/user';
-import { Post, ReactionType } from '../types/post';
+import { useState } from 'react';
+import { ReactionType } from '../types/post';
 import UserAvatar from './UserAvatar';
 import { formatDate, getDominantEmotion, getEmotionColor } from '../lib/utils';
 import { usePost, useAddReaction } from '../features/post/hooks';
+import { useUser } from '@/features/user/hooks';
+import { useEffect } from 'react';
 
 interface PostDetailProps {
   postId: string;
@@ -12,36 +14,24 @@ interface PostDetailProps {
 export default function PostDetail({ postId }: PostDetailProps) {
   // Use real data from hooks
   const { data: post, error, isLoading } = usePost(postId);
-  //const { data: postUser } = useUser(post?.userId || '');
+  const { data: postUser } = useUser(post?.userId || '');
   const { addReaction, isLoading: isReacting } = useAddReaction(postId,"1");
+  const [dominantEmotion, setDominantEmotion] = useState<string | null>(null);
+  const [emotionColor, setEmotionColor] = useState<string | null>(null);
   console.log("postId", postId);
   
-  if (isLoading || !post) {
-    return (
-      <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 animate-pulse">
-        <div className="flex items-start space-x-3">
-          <div className="h-10 w-10 rounded-full bg-gray-300 dark:bg-gray-700"></div>
-          <div className="flex-1">
-            <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-1/4 mb-2"></div>
-            <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-full mb-1"></div>
-            <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-full mb-1"></div>
-            <div className="h-4 bg-gray-300 dark:bg-gray-700 rounded w-3/4"></div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Use real data only
-  const currentPost = post;
-  const currentUser = postUser;
-  
-  const dominantEmotion = getDominantEmotion(currentPost.emotionTags || []);
-  const emotionColor = getEmotionColor(dominantEmotion);
+  useEffect(() => {
+    if (post) {
+      const emotion = getDominantEmotion(post.emotionTags);
+      setDominantEmotion(emotion);
+      const color = getEmotionColor(emotion);
+      setEmotionColor(color);
+    }
+  }, [post]);
   
   const handleReaction = async (type: ReactionType) => {
     if (isReacting) return;
-    await addReaction(currentUser.id, type);
+    await addReaction(postUser!.id, type);
   };
 
   if (error) {
@@ -63,21 +53,21 @@ export default function PostDetail({ postId }: PostDetailProps) {
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
       <div className="flex items-start space-x-3 mb-4">
-        <UserAvatar user={currentUser} size="lg" showName />
+        {postUser ? <UserAvatar user={postUser} size="lg" showName /> : null}
         
         <div className="flex-1 min-w-0 pt-1">
           <div className="text-sm text-gray-500">
-            {formatDate(currentPost.createdAt)}
+            {post ? formatDate(post.createdAt) : 'Loading...'}
           </div>
         </div>
       </div>
       
       <div className="mb-4 whitespace-pre-line text-lg">
-        {currentPost.content}
+        {post ? post.content : 'Loading...'}
       </div>
       
       <div className="flex flex-wrap gap-2 mb-6">
-        {currentPost.emotionTags.map((tag: { type: string; score: number }) => (
+        {post?.emotionTags.map((tag: { type: string; score: number }) => (
           <span 
             key={tag.type}
             className="text-sm px-3 py-1 rounded-full" 
@@ -99,19 +89,19 @@ export default function PostDetail({ postId }: PostDetailProps) {
               onClick={() => handleReaction(button.type)}
               disabled={isReacting}
               className={`flex items-center space-x-1 px-3 py-2 rounded-full text-sm ${
-                currentPost.reactionCounts[button.type] > 0
+                post && post.reactionCounts[button.type] > 0
                   ? 'bg-blue-50 text-blue-500 dark:bg-blue-900 dark:text-blue-300'
                   : 'hover:bg-gray-100 dark:hover:bg-gray-700'
               }`}
             >
               <span>{button.emoji}</span>
-              <span>{currentPost.reactionCounts[button.type]}</span>
+              <span>{post?.reactionCounts[button.type]}</span>
             </button>
           ))}
         </div>
         
         <div className="text-sm text-gray-500">
-          {currentPost.replyCount > 0 && `${currentPost.replyCount}件の返信`}
+          {post && post.replyCount > 0 && `${post.replyCount}件の返信`}
         </div>
       </div>
     </div>

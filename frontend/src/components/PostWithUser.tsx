@@ -1,13 +1,13 @@
 // PostWithUser.tsx
 'use client';
 import { useEffect, useState } from 'react';
-import { useAuth } from '@/features/auth/hooks';
+import { useUser } from '@/features/user/hooks';
 import PostCard from './PostCard';
 import { Post } from '../types/post';
 import { User } from '../types/user';
 
 export default function PostWithUser({ post }: { post: Post }) {
-  const { user } = useAuth();
+  const { data: user } = useUser(post.userId);
   
   // If there's an error or the loading timeout has been reached, use a fallback user
   if (!user) {

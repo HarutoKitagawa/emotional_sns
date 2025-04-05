@@ -86,7 +86,7 @@ func (c *Neo4jClient) GetPostWithEmotions(postId string) (string, string, string
 				p.createdAt AS createdAt,
 				collect({type: e.type, score: t.score}) AS emotions
 		`, map[string]any{"postId": postId})
-	
+
 		if err != nil {
 			return nil, err
 		}
@@ -182,8 +182,7 @@ func (c *Neo4jClient) AddReaction(postId, userId, reactionType string) error {
             MERGE (u:User {id: $userId})
 			WITH u
             MATCH (p:Post {id: $postId})
-            MERGE (u)-[r:REACTED]->(p)
-            SET r.type = $type, r.createdAt = $createdAt
+            MERGE (u)-[r:REACTED {type: $type, createdAt: $createdAt}]->(p)
         `, map[string]any{
 			"userId":    userId,
 			"postId":    postId,

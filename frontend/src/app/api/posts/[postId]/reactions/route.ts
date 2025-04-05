@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { fetcher, createApiUrl } from '@/lib/fetcher';
 
-export async function GET(
+export async function POST(
   req: NextRequest,
   { params }: { params: { postId: string } }
 ) {

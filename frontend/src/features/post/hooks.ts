@@ -235,7 +235,7 @@ export const useCreatePost = () => {
 /**
  * Hook for adding a reaction to a post
  */
-export const useAddReaction = (postId: string, userId: string) => {
+export const useAddReaction = (postId: string) => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const { mutate } = useFeedPosts();

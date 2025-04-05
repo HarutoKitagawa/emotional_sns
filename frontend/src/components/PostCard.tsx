@@ -6,6 +6,7 @@ import { User } from '../types/user';
 import UserAvatar from './UserAvatar';
 import { formatDate, getDominantEmotion, getEmotionColor, truncateText } from '../lib/utils';
 import { useAddReaction } from '../features/post/hooks';
+import { useAuth } from '@/features/auth/hooks';
 
 interface PostCardProps {
   post: Post;
@@ -15,7 +16,7 @@ interface PostCardProps {
 
 export default function PostCard({ post, user, preview = false }: PostCardProps) {
   const [showFullContent, setShowFullContent] = useState(false);
-  const { addReaction, isLoading: isReacting } = useAddReaction(post.id, "1");
+  const { addReaction, isLoading: isReacting } = useAddReaction(post.id);
   
   const dominantEmotion = getDominantEmotion(post.emotionTags);
   const emotionColor = getEmotionColor(dominantEmotion);
