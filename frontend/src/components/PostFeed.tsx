@@ -1,8 +1,9 @@
 'use client';
+import { useState } from 'react';
 import { useFeedPosts, useEmotionTags } from '../features/post/hooks';
 import PostWithUser from './PostWithUser';
 import { getEmotionColor } from '../lib/utils';
-import { EmotionType } from '../types/post';
+import { EmotionType, Post } from '../types/post';
 
 // Helper function to get a color for any emotion tag
 const getTagColor = (tag: string): string => {
@@ -27,12 +28,31 @@ const getTagColor = (tag: string): string => {
 };
 
 export default function PostFeed() {
+  const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const { data: posts, error, isLoading } = useFeedPosts();
   const { data: emotionTagsData, error: tagsError, isLoading: tagsLoading } = useEmotionTags();
-  const emotionTags = emotionTagsData?.emotionTags ?? []; // ← ここで取り出す！
-
+  // emotionTagsData is likely an array of strings
+  const emotionTags = emotionTagsData?.emotionTags ?? [];
 
   console.log('Emotion tags in PostFeed:', emotionTags);
+
+  // Filter posts based on selected emotion tag
+  const filteredPosts = selectedTag
+    ? posts?.filter((post: Post) => 
+        post.emotionTags.some(tag => tag.type === selectedTag)
+      )
+    : posts;
+
+  // Handle tag selection
+  const handleTagClick = (tagType: string) => {
+    if (selectedTag === tagType) {
+      // If clicking the already selected tag, clear the filter
+      setSelectedTag(null);
+    } else {
+      // Otherwise, set the new filter
+      setSelectedTag(tagType);
+    }
+  };
 
   if (isLoading) return <div>Loading...</div>;
   if (error) return <div>Error loading posts: {error.message}</div>;
@@ -56,24 +76,39 @@ export default function PostFeed() {
             emotionTags.map((tag) => (
               <button
                 key={tag.type}
-                className="px-3 py-1 rounded-full text-sm font-medium transition-colors"
+                className={`px-3 py-1 rounded-full text-sm font-medium transition-colors ${
+                  selectedTag === tag.type ? 'ring-2 ring-offset-1' : ''
+                }`}
                 style={{
-                  backgroundColor: `${getTagColor(tag.type)}20`,
-                  color: getTagColor(tag.type)
+                  backgroundColor: `${getTagColor(tag.type)}${selectedTag === tag.type ? '40' : '20'}`,
+                  color: getTagColor(tag.type),
                 }}
+                onClick={() => handleTagClick(tag.type)}
               >
                 {tag.type}
+                {selectedTag === tag.type && ' ✓'}
               </button>
             ))
+            
           )}
         </div>
       </div>
 
       {/* Posts List */}
       <div className="space-y-4">
-        {posts.map((post) => (
-          <PostWithUser key={post.id} post={post} />
-        ))}
+        {filteredPosts && filteredPosts.length > 0 ? (
+          filteredPosts.map((post) => (
+            <PostWithUser key={post.id} post={post} />
+          ))
+        ) : (
+          <div className="text-center py-4">
+            {selectedTag ? (
+              <p>「{selectedTag}」の感情タグを持つ投稿はありません。</p>
+            ) : (
+              <p>投稿がありません。</p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
