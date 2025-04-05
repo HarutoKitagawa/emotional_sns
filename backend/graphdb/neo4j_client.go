@@ -446,3 +446,59 @@ func (c *Neo4jClient) GetPostContent(postId string) (string, error) {
 	}
 	return result.(string), nil
 }
+
+func (c *Neo4jClient) GetInfluencedPostsLast24Hours(userId string) ([]InfluencedPost, error) {
+	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
+	defer session.Close(context.Background())
+
+	result, err := session.ExecuteRead(context.Background(), func(tx neo4j.ManagedTransaction) (any, error) {
+		records, err := tx.Run(context.Background(), `
+			MATCH (u:User {id: $userId})-[i:INFLUENCED]->(p:Post)
+			WHERE datetime() - duration('P1D') < datetime()
+			RETURN p.id AS postId, p.content AS content
+		`, map[string]any{"userId": userId})
+
+		if err != nil {
+			return nil, err
+		}
+
+		var posts []InfluencedPost
+		for records.Next(context.Background()) {
+			record := records.Record()
+			postId, _ := record.Get("postId")
+			content, _ := record.Get("content")
+
+			posts = append(posts, InfluencedPost{
+				PostID:  postId.(string),
+				Content: content.(string),
+			})
+		}
+
+		return posts, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return result.([]InfluencedPost), nil
+}
+
+func (c *Neo4jClient) AddSameTopicRelation(fromPostID, toPostID string) error {
+	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
+	defer session.Close(context.Background())
+
+	_, err := session.ExecuteWrite(context.Background(), func(tx neo4j.ManagedTransaction) (any, error) {
+		_, err := tx.Run(context.Background(), `
+			MATCH (p1:Post {id: $fromPostID})
+			MATCH (p2:Post {id: $toPostID})
+			MERGE (p1)-[r:SAME_TOPIC]->(p2)
+		`, map[string]any{
+			"fromPostID": fromPostID,
+			"toPostID":   toPostID,
+		})
+		return nil, err
+	})
+
+	return err
+}

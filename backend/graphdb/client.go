@@ -5,6 +5,11 @@ type EmotionTag struct {
 	Score float64 `json:"score"`
 }
 
+type InfluencedPost struct {
+	PostID  string `json:"postId"`
+	Content string `json:"content"`
+}
+
 type ReplyItem struct {
 	ReplyID   string `json:"replyId"`
 	UserID    string `json:"userId"`
@@ -38,5 +43,7 @@ type GraphDbClient interface {
 	GetAllEmotionTags() ([]EmotionTagOnly, error)
 	FollowUser(userId, targetUserId string) error
 	GetPostContent(postId string) (content string, err error)
+	GetInfluencedPostsLast24Hours(userId string) ([]InfluencedPost, error)
+	AddSameTopicRelation(fromPostID, toPostID string) error
 	Close() error
 }

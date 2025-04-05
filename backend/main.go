@@ -143,6 +143,29 @@ func handleCreatePost(client graphdb.GraphDbClient) http.HandlerFunc {
 			return
 		}
 
+		// 過去24時間に影響を受けた投稿を取得
+		influencedPosts, err := client.GetInfluencedPostsLast24Hours(req.UserID)
+		if err != nil {
+			log.Printf("Failed to get influenced posts: %v", err)
+			// エラーがあっても処理は続行
+		} else {
+			// 各投稿について、同じトピックかどうかを判断
+			for _, post := range influencedPosts {
+				isSameTopic, err := analyzeTopicSimilarity(req.Content, post.Content)
+				if err != nil {
+					log.Printf("Failed to analyze topic similarity: %v", err)
+					continue
+				}
+
+				if isSameTopic {
+					// 同じトピックであれば、SAME_TOPICリレーションを作成
+					if err := client.AddSameTopicRelation(postId, post.PostID); err != nil {
+						log.Printf("Failed to add SAME_TOPIC relation: %v", err)
+					}
+				}
+			}
+		}
+
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
 		json.NewEncoder(w).Encode(PostResponse{
@@ -410,4 +433,30 @@ func analyzeEmotionOfReply(post string, reply string) ([]graphdb.EmotionTag, err
 	}
 
 	return result, nil
+}
+
+func analyzeTopicSimilarity(content1, content2 string) (bool, error) {
+	api := os.Getenv("EMOTION_API")
+	body, _ := json.Marshal(map[string]string{
+		"post1": content1,
+		"post2": content2,
+	})
+
+	resp, err := http.Post(api+"/analyze_topic_similarity", "application/json", bytes.NewBuffer(body))
+	if err != nil {
+		return false, err
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		IsSameTopic bool    `json:"is_same_topic"`
+		Confidence  float64 `json:"confidence"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return false, err
+	}
+
+	// 確信度が0.7以上の場合に同じトピックと判断（閾値は調整可能）
+	return result.IsSameTopic && result.Confidence >= 0.7, nil
 }
