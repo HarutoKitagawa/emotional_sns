@@ -54,7 +54,15 @@ paths:
                 postId: "abc123"
                 userId: "user123"
                 content: "今日の気分は晴れですぴょん"
-                emotionTag: "joy"
+                emotionTags:
+                - type: "joy"
+                  score: 0.95
+                - type: "surprise"
+                  score: 0.75
+                reactionCounts:
+                  like: 5
+                  love: 3
+                  cry: 1
         '404':
           description: Post not found
           content:
