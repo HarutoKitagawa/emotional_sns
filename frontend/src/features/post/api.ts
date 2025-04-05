@@ -5,9 +5,12 @@ import { createApiUrl, fetcher } from '../../lib/fetcher';
  * Create a new post
  */
 export const createPost = async (userId: string, content: string): Promise<Post> => {
-  return fetcher<Post>(createApiUrl('/posts'), {
+  return fetcher<Post>('/api/posts', {
     method: 'POST',
     body: JSON.stringify({ userId, content }),
+    headers: {
+      'Content-Type': 'application/json',
+    },
   });
 };
 
