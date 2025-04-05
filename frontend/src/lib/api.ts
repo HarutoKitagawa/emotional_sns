@@ -74,7 +74,7 @@ export const addReply = async (
   userId: string,
   content: string
 ): Promise<Reply> => {
-  return fetcher<Reply>(createApiUrl(`/posts/${postId}/replies`), {
+  return fetcher<Reply>(`/api//posts/${postId}/replies`, {
     method: 'POST',
     body: JSON.stringify({ userId, content }),
   });
