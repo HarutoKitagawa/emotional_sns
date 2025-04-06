@@ -90,7 +90,11 @@ export default function NewPostButton() {
                   value={content}
                   onChange={(e) => setContent(e.target.value)}
                   required
+                  maxLength={140}
                 ></textarea>
+                <div className="text-right text-sm text-gray-400 mt-1">
+                  {content.length}/140
+                </div>
               </div>
 
               {error && (
