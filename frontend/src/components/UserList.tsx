@@ -30,27 +30,27 @@ interface UserListItemProps {
 }
 
 function UserListItem({ user }: UserListItemProps) {
-  const { isFollowing, follow, unfollow, isLoading } = useFollowUser(user.id);
+  // const { isFollowing, follow, unfollow, isLoading } = useFollowUser(user.id);
   
-  const handleFollowClick = async () => {
-    try {
-      if (isFollowing) {
-        await unfollow();
-      } else {
-        await follow();
-      }
-      console.log(`${isFollowing ? 'Unfollowed' : 'Followed'} user: ${user.id}`);
-    } catch (error) {
-      console.error('Error following/unfollowing user:', error);
-    }
-  };
+  // const handleFollowClick = async () => {
+  //   try {
+  //     if (isFollowing) {
+  //       await unfollow();
+  //     } else {
+  //       await follow();
+  //     }
+  //     console.log(`${isFollowing ? 'Unfollowed' : 'Followed'} user: ${user.id}`);
+  //   } catch (error) {
+  //     console.error('Error following/unfollowing user:', error);
+  //   }
+  // };
   
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
       <div className="flex items-center justify-between">
         <UserAvatar user={user} showName />
         
-        <button
+        {/* <button
           onClick={handleFollowClick}
           disabled={isLoading}
           className={`px-4 py-1.5 rounded-full text-sm font-medium ${
@@ -64,7 +64,7 @@ function UserListItem({ user }: UserListItemProps) {
             : isFollowing
             ? 'フォロー中'
             : 'フォローする'}
-        </button>
+        </button> */}
       </div>
       
       {user.bio && (
@@ -73,11 +73,11 @@ function UserListItem({ user }: UserListItemProps) {
         </p>
       )}
       
-      <div className="mt-2 flex items-center text-xs text-gray-500 dark:text-gray-400 space-x-2">
+      {/* <div className="mt-2 flex items-center text-xs text-gray-500 dark:text-gray-400 space-x-2">
         <span>{user.followersCount} フォロワー</span>
         <span>•</span>
         <span>{user.followingCount} フォロー中</span>
-      </div>
+      </div> */}
     </div>
   );
 }

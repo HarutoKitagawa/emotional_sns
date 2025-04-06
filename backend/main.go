@@ -763,7 +763,19 @@ func handleUserFollowers(client graphdb.GraphDbClient) http.HandlerFunc {
 		// For now, we'll return an empty array
 		// In a real implementation, we would get the followers from the database
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode([]graphdb.UserDetails{})
+		followers, err := client.GetFollowers(userId)
+		if err != nil {
+			log.Printf("Failed to get followers: %v", err)
+			http.Error(w, "Failed to get followers", http.StatusInternalServerError)
+			return
+		}
+		if len(followers) > 0 {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(followers)
+		} else {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode([]graphdb.UserDetails{})
+		}
 	}
 }
 
@@ -782,10 +794,19 @@ func handleUserFollowing(client graphdb.GraphDbClient) http.HandlerFunc {
 			// In a real implementation, we would use the userId to get the following users
 			log.Printf("Getting following users for user: %s", userId)
 
-			// For now, we'll return an empty array
-			// In a real implementation, we would get the following users from the database
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode([]graphdb.UserDetails{})
+			following, err := client.GetFollowing(userId)
+			if err != nil {
+				log.Printf("Failed to get following users: %v", err)
+				http.Error(w, "Failed to get following users", http.StatusInternalServerError)
+				return
+			}
+			if len(following) > 0 {
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode(following)
+			} else {
+				w.Header().Set("Content-Type", "application/json")
+				json.NewEncoder(w).Encode([]graphdb.UserDetails{})
+			}
 		} else if r.Method == http.MethodPost {
 			// Follow a user
 			parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")

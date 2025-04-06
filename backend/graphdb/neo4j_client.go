@@ -495,6 +495,73 @@ func (c *Neo4jClient) FollowUser(userId, targetUserId string) error {
 	return err
 }
 
+func (c *Neo4jClient) GetFollowers(userId string) ([]UserDetails, error) {
+	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
+	defer session.Close(context.Background())
+
+	result, err := session.ExecuteRead(context.Background(), func(tx neo4j.ManagedTransaction) (any, error) {
+		records, err := tx.Run(context.Background(), `
+			MATCH (u:User {id: $userId})<-[:FOLLOWS]-(follower:User)
+			RETURN follower.id AS id, follower.username AS username, follower.email AS email
+		`, map[string]any{"userId": userId})
+		if err != nil {
+			return nil, err
+		}
+
+		var followers []UserDetails
+		for records.Next(context.Background()) {
+			record := records.Record()
+			id, _ := record.Get("id")
+			username, _ := record.Get("username")
+			email, _ := record.Get("email")
+
+			followers = append(followers, UserDetails{
+				ID:       id.(string),
+				Username: username.(string),
+				Email:    email.(string),
+			})
+		}
+
+		return followers, nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+	return result.([]UserDetails), nil
+}
+
+func (c *Neo4jClient) GetFollowing(userId string) ([]UserDetails, error) {
+	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
+	defer session.Close(context.Background())
+	result, err := session.ExecuteRead(context.Background(), func(tx neo4j.ManagedTransaction) (any, error) {
+		records, err := tx.Run(context.Background(), `
+			MATCH (u:User {id: $userId})-[:FOLLOWS]->(following:User)
+			RETURN following.id AS id, following.username AS username, following.email AS email
+		`, map[string]any{"userId": userId})
+		if err != nil {
+			return nil, err
+		}
+		var following []UserDetails
+		for records.Next(context.Background()) {
+			record := records.Record()
+			id, _ := record.Get("id")
+			username, _ := record.Get("username")
+			email, _ := record.Get("email")
+			following = append(following, UserDetails{
+				ID:       id.(string),
+				Username: username.(string),
+				Email:    email.(string),
+			})
+		}
+		return following, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return result.([]UserDetails), nil
+}
+
 func (c *Neo4jClient) GetPostContent(postId string) (string, error) {
 	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
 	defer session.Close(context.Background())
