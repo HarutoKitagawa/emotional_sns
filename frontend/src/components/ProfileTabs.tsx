@@ -5,7 +5,6 @@ import { User } from '../types/user';
 import { Post } from '../types/post';
 import PostCard from './PostCard';
 import UserList from './UserList';
-import EmotionalProfileChart from './EmotionalProfileChart';
 import { useUserPosts } from '../features/user/hooks';
 import { useUserFollowers, useUserFollowing, useUser } from '../features/user/hooks';
 
@@ -27,7 +26,6 @@ export default function ProfileTabs({ userId }: ProfileTabsProps) {
     { id: 'posts', label: '投稿' },
     { id: 'followers', label: 'フォロワー' },
     { id: 'following', label: 'フォロー中' },
-    { id: 'emotional', label: '感情プロフィール' },
   ];
   
   return (
@@ -97,12 +95,6 @@ export default function ProfileTabs({ userId }: ProfileTabsProps) {
                 <p className="text-gray-500 dark:text-gray-400">フォローしているユーザーがいません。</p>
               </div>
             )}
-          </div>
-        )}
-        
-        {activeTab === 'emotional' && (
-          <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <EmotionalProfileChart userId={userId} />
           </div>
         )}
       </div>

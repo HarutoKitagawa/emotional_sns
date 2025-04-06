@@ -18,12 +18,6 @@ export default function Header() {
             <div className="h-8 w-8 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"></div>
           ) : isLoggedIn && user ? (
             <>
-              <Link
-                href="/create"
-                className="px-4 py-2 rounded-full bg-blue-500 text-white font-medium hover:bg-blue-600 transition-colors"
-              >
-                投稿する
-              </Link>
               <div className="flex items-center space-x-2">
                 <Link
                   href={`/profile/${user.id}`}
