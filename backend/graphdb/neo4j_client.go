@@ -196,15 +196,15 @@ func (c *Neo4jClient) AddReaction(postId, userId, reactionType string) error {
 	return err
 }
 
-func (c *Neo4jClient) AddReply(postId, userId, content string) (string, error) {
+func (c *Neo4jClient) AddReplyWithEmotions(postId, userId, content string, emotions []EmotionTag) (string, error) {
 	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
 	defer session.Close(context.Background())
 
 	replyId := uuid.New().String()
-
 	createdAt := time.Now().UTC().Format(time.RFC3339)
 
 	_, err := session.ExecuteWrite(context.Background(), func(tx neo4j.ManagedTransaction) (any, error) {
+		// User、Post、Replyノードと関係の作成
 		_, err := tx.Run(context.Background(), `
 			MERGE (u:User {id: $userId})
 			WITH u
@@ -219,7 +219,29 @@ func (c *Neo4jClient) AddReply(postId, userId, content string) (string, error) {
 			"content":   content,
 			"createdAt": createdAt,
 		})
-		return nil, err
+		if err != nil {
+			return nil, err
+		}
+
+		// Emotionノードとの関連付け
+		for _, e := range emotions {
+			_, err := tx.Run(context.Background(), `
+				MERGE (em:Emotion {type: $type})
+				WITH em
+				MATCH (r:Reply {id: $replyId})
+				MERGE (em)-[tag:TAGGED]->(r)
+				SET tag.score = $score
+			`, map[string]any{
+				"type":    e.Type,
+				"score":   e.Score,
+				"replyId": replyId,
+			})
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		return nil, nil
 	})
 
 	if err != nil {
@@ -256,8 +278,15 @@ func (c *Neo4jClient) GetReplies(postId string) ([]ReplyItem, error) {
 	result, err := session.ExecuteRead(context.Background(), func(tx neo4j.ManagedTransaction) (any, error) {
 		records, err := tx.Run(context.Background(), `
 			MATCH (u:User)-[:REPLIED]->(r:Reply)-[:REPLY_TO]->(p:Post {id: $postId})
-			RETURN r.id AS replyId, u.id AS userId, r.content, r.createdAt AS content
-			ORDER BY r.id
+			OPTIONAL MATCH (e:Emotion)-[t:TAGGED]->(r)
+			WITH r, u, collect(DISTINCT {type: e.type, score: t.score}) AS emotions
+			RETURN 
+				r.id AS replyId,
+				u.id AS userId,
+				r.content AS content,
+				r.createdAt AS createdAt,
+				emotions
+			ORDER BY r.createdAt ASC
 		`, map[string]any{"postId": postId})
 		if err != nil {
 			return nil, err
@@ -266,15 +295,35 @@ func (c *Neo4jClient) GetReplies(postId string) ([]ReplyItem, error) {
 		var replies []ReplyItem
 		for records.Next(context.Background()) {
 			rec := records.Record()
+
+			// パース
+			emotionList := []EmotionTag{}
+			if raw, ok := rec.Get("emotions"); ok && raw != nil {
+				for _, e := range raw.([]any) {
+					emap := e.(map[string]any)
+					emotionList = append(emotionList, EmotionTag{
+						Type:  emap["type"].(string),
+						Score: emap["score"].(float64),
+					})
+				}
+			}
+
 			replies = append(replies, ReplyItem{
-				ReplyID:   rec.Values[0].(string),
-				UserID:    rec.Values[1].(string),
-				Content:   rec.Values[2].(string),
-				CreatedAt: rec.Values[3].(string),
+				ReplyID:     rec.Values[0].(string),
+				UserID:      rec.Values[1].(string),
+				Content:     rec.Values[2].(string),
+				CreatedAt:   rec.Values[3].(string),
+				EmotionTags: emotionList,
 			})
 		}
+
+		if err := records.Err(); err != nil {
+			return nil, err
+		}
+
 		return replies, nil
 	})
+
 	if err != nil {
 		return nil, err
 	}
