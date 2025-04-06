@@ -67,13 +67,6 @@ export default async function PostPage({ params }: PostPageProps) {
             <EmotionalInfluenceGraph postId={id} />
           </Suspense>
           
-          <div className="mt-8 p-4 bg-white dark:bg-gray-800 rounded-lg shadow">
-            <h3 className="font-medium mb-2">感情分析について</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-300">
-              EmotionSNSでは、投稿内容から感情を分析し、その投稿がどのような感情的影響を与えているかを可視化します。
-              これにより、コミュニケーションの質を向上させ、より共感的な交流を促進します。
-            </p>
-          </div>
         </div>
       </div>
     </div>

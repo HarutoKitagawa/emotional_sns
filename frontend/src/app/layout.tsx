@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "EmotionSNS - 感情分析SNS",
+  title: "iFeel - 感情分析SNS",
   description: "感情分析を活用したソーシャルネットワーキングサービス",
 };
 

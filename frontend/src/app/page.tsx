@@ -18,14 +18,6 @@ export default function Home() {
           <Suspense fallback={<div>トレンドを読み込み中...</div>}>
             <EmotionTrends />
           </Suspense>
-          
-          <div className="mt-8 p-4 bg-white dark:bg-gray-800 rounded-lg shadow">
-            <h3 className="font-medium mb-2">EmotionSNSについて</h3>
-            <p className="text-sm text-gray-600 dark:text-gray-300">
-              EmotionSNSは、投稿内容から感情を分析し、感情に基づいたコミュニケーションを促進するソーシャルネットワークです。
-              あなたの感情を共有し、他のユーザーの感情に共感しましょう。
-            </p>
-          </div>
         </div>
       </div>
     </div>
