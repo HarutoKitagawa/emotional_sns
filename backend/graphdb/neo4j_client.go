@@ -182,7 +182,8 @@ func (c *Neo4jClient) AddReaction(postId, userId, reactionType string) error {
             MERGE (u:User {id: $userId})
 			WITH u
             MATCH (p:Post {id: $postId})
-            MERGE (u)-[r:REACTED {type: $type, createdAt: $createdAt}]->(p)
+            MERGE (u)-[r:REACTED {type: $type}]->(p)
+			SET r.createdAt = $createdAt
         `, map[string]any{
 			"userId":    userId,
 			"postId":    postId,
