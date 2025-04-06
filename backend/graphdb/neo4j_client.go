@@ -1035,3 +1035,22 @@ func (c *Neo4jClient) CountFollowing(userId string) (int, error) {
 
 	return result.(int), nil
 }
+
+// UnfollowUser removes a FOLLOWS relationship from one user to another
+func (c *Neo4jClient) UnfollowUser(userId, targetUserId string) error {
+	session := c.driver.NewSession(context.Background(), neo4j.SessionConfig{})
+	defer session.Close(context.Background())
+
+	_, err := session.ExecuteWrite(context.Background(), func(tx neo4j.ManagedTransaction) (any, error) {
+		_, err := tx.Run(context.Background(), `
+			MATCH (u1:User {id: $userId})-[f:FOLLOWS]->(u2:User {id: $targetUserId})
+			DELETE f
+		`, map[string]any{
+			"userId":       userId,
+			"targetUserId": targetUserId,
+		})
+		return nil, err
+	})
+
+	return err
+}

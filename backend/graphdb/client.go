@@ -75,6 +75,7 @@ type GraphDbClient interface {
 	GetFeed(emotionFilter string) ([]FeedPost, error)
 	GetAllEmotionTags() ([]EmotionTagOnly, error)
 	FollowUser(userId, targetUserId string) error
+	UnfollowUser(userId, targetUserId string) error
 	GetPostContent(postId string) (content string, err error)
 	GetInfluencedPostsLast24Hours(userId string) ([]InfluencedPost, error)
 	AddSameTopicRelation(fromPostID, toPostID string) error

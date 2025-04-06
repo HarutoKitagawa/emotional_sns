@@ -139,7 +139,7 @@ export const followUser = async (
   userId: string,
   targetUserId: string
 ): Promise<void> => {
-  return fetcher<void>(createApiUrl(`/users/${userId}/following`), {
+  return fetcher<void>(`/api/users/${userId}/following`, {
     method: 'POST',
     body: JSON.stringify({ targetUserId }),
   });
@@ -152,7 +152,7 @@ export const unfollowUser = async (
   userId: string,
   targetUserId: string
 ): Promise<void> => {
-  return fetcher<void>(createApiUrl(`/users/${userId}/following/${targetUserId}`), {
+  return fetcher<void>(`/api/users/${userId}/following/${targetUserId}`, {
     method: 'DELETE',
   });
 };
@@ -161,14 +161,14 @@ export const unfollowUser = async (
  * Get user followers
  */
 export const getUserFollowers = async (userId: string): Promise<User[]> => {
-  return fetcher<User[]>(createApiUrl(`/users/${userId}/followers`));
+  return fetcher<User[]>(`/api/users/${userId}/followers`);
 };
 
 /**
  * Get users that a user is following
  */
 export const getUserFollowing = async (userId: string): Promise<User[]> => {
-  return fetcher<User[]>(createApiUrl(`/users/${userId}/following`));
+  return fetcher<User[]>(`/api/users/${userId}/following`);
 };
 
 /**

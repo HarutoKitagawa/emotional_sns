@@ -145,6 +145,9 @@ func main() {
 
 	// User related endpoints
 	http.HandleFunc("/users/", func(w http.ResponseWriter, r *http.Request) {
+		path := strings.Trim(r.URL.Path, "/")
+		parts := strings.Split(path, "/")
+
 		switch {
 		case strings.HasSuffix(r.URL.Path, "/feed"):
 			handleUserFeed(client)(w, r)
@@ -152,9 +155,16 @@ func main() {
 			handleFollowUser(client)(w, r)
 		case strings.HasSuffix(r.URL.Path, "/posts"):
 			handleUserPosts(client)(w, r)
+		case strings.HasSuffix(r.URL.Path, "/followers"):
+			handleUserFollowers(client)(w, r)
+		case len(parts) == 4 && parts[0] == "users" && parts[2] == "following":
+			// Route: /users/{userId}/following/{targetId}
+			handleUnfollowUser(client)(w, r)
+		case strings.HasSuffix(r.URL.Path, "/following"):
+			// Route: /users/{userId}/following
+			handleUserFollowing(client)(w, r)
 		default:
 			// Check if it's a direct user ID request
-			parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 			if len(parts) == 2 && parts[0] == "users" {
 				handleGetUser(client)(w, r)
 			} else {
@@ -732,6 +742,107 @@ func handleLogin(client graphdb.GraphDbClient) http.HandlerFunc {
 }
 
 // handleGetCurrentUser handles getting the current user from the token
+// handleUserFollowers handles getting followers of a user
+func handleUserFollowers(client graphdb.GraphDbClient) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		if len(parts) != 3 || parts[0] != "users" || parts[2] != "followers" {
+			http.Error(w, "Invalid path", http.StatusBadRequest)
+			return
+		}
+		userId := parts[1]
+
+		// In a real implementation, we would use the userId to get the followers
+		log.Printf("Getting followers for user: %s", userId)
+
+		// For now, we'll return an empty array
+		// In a real implementation, we would get the followers from the database
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode([]graphdb.UserDetails{})
+	}
+}
+
+// handleUserFollowing handles getting users that a user is following
+func handleUserFollowing(client graphdb.GraphDbClient) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			// Get users that a user is following
+			parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+			if len(parts) != 3 || parts[0] != "users" || parts[2] != "following" {
+				http.Error(w, "Invalid path", http.StatusBadRequest)
+				return
+			}
+			userId := parts[1]
+
+			// In a real implementation, we would use the userId to get the following users
+			log.Printf("Getting following users for user: %s", userId)
+
+			// For now, we'll return an empty array
+			// In a real implementation, we would get the following users from the database
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode([]graphdb.UserDetails{})
+		} else if r.Method == http.MethodPost {
+			// Follow a user
+			parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+			if len(parts) != 3 || parts[0] != "users" || parts[2] != "following" {
+				http.Error(w, "Invalid path", http.StatusBadRequest)
+				return
+			}
+			userId := parts[1]
+
+			var req FollowRequest
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.TargetUserID == "" {
+				http.Error(w, "Missing targetUserId", http.StatusBadRequest)
+				return
+			}
+
+			if err := client.FollowUser(userId, req.TargetUserID); err != nil {
+				log.Printf("Failed to follow: %v", err)
+				http.Error(w, "Failed to follow", http.StatusInternalServerError)
+				return
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusCreated)
+			json.NewEncoder(w).Encode(FollowResponse{Status: "followed"})
+		} else {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		}
+	}
+}
+
+// handleUnfollowUser handles unfollowing a user
+func handleUnfollowUser(client graphdb.GraphDbClient) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete {
+			http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		if len(parts) != 4 || parts[0] != "users" || parts[2] != "following" {
+			http.Error(w, "Invalid path", http.StatusBadRequest)
+			return
+		}
+		userId := parts[1]
+		targetUserId := parts[3]
+
+		if err := client.UnfollowUser(userId, targetUserId); err != nil {
+			log.Printf("Failed to unfollow: %v", err)
+			http.Error(w, "Failed to unfollow", http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"status": "unfollowed"})
+	}
+}
+
 func handleGetCurrentUser(client graphdb.GraphDbClient) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
