@@ -327,12 +327,6 @@ func handleAddReply(client graphdb.GraphDbClient) http.HandlerFunc {
 			return
 		}
 
-		replyId, err := client.AddReply(postId, req.UserID, req.Content)
-		if err != nil {
-			http.Error(w, "Database error", http.StatusInternalServerError)
-			return
-		}
-
 		postConstent, err := client.GetPostContent(postId)
 		if err != nil {
 			http.Error(w, "Failed to get post content", http.StatusInternalServerError)
@@ -341,6 +335,12 @@ func handleAddReply(client graphdb.GraphDbClient) http.HandlerFunc {
 		emotionResp, err := analyzeEmotionOfReply(postConstent, req.Content)
 		if err != nil {
 			http.Error(w, "Emotion analysis failed", http.StatusInternalServerError)
+			return
+		}
+
+		replyId, err := client.AddReplyWithEmotions(postId, req.UserID, req.Content, emotionResp)
+		if err != nil {
+			http.Error(w, "Database error", http.StatusInternalServerError)
 			return
 		}
 
