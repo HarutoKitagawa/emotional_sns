@@ -1,6 +1,7 @@
 'use client';
 import { User } from '../types/user';
-import { useFollowUser, useUserSession, useUser } from '../features/user/hooks';
+import { useFollowUser, useUser } from '../features/user/hooks';
+import { useAuth } from '../features/auth/hooks';
 import { getEmotionColor } from '../lib/utils';
 
 interface ProfileHeaderProps {
@@ -8,12 +9,18 @@ interface ProfileHeaderProps {
 }
 
 export default function ProfileHeader({ userId }: ProfileHeaderProps) {
-  const { data: user, error, isLoading } = useUser(userId);
-  const { user: currentUser, isLoggedIn } = useUserSession();
-  const { isFollowing, follow, unfollow, isLoading: isFollowLoading } = useFollowUser(userId);
-  
+  const { data: user, error, isLoading, mutate: mutateUser } = useUser(userId);
+  const { user: currentUser } = useAuth(); // ← ここでログインユーザーを取得！
+
   const isCurrentUser = currentUser?.id === userId;
-  
+
+  const {
+    isFollowing,
+    follow,
+    unfollow,
+    isLoading: isFollowLoading,
+  } = useFollowUser(userId);
+
   const handleFollowClick = async () => {
     try {
       if (isFollowing) {
@@ -21,12 +28,15 @@ export default function ProfileHeader({ userId }: ProfileHeaderProps) {
       } else {
         await follow();
       }
+      // フォロー／アンフォロー後、ユーザー情報の再取得
+      mutateUser();
+
       console.log(`${isFollowing ? 'Unfollowed' : 'Followed'} user: ${userId}`);
     } catch (error) {
       console.error('Error following/unfollowing user:', error);
     }
   };
-  
+
   if (isLoading) {
     return (
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6 animate-pulse">
@@ -43,7 +53,7 @@ export default function ProfileHeader({ userId }: ProfileHeaderProps) {
       </div>
     );
   }
-  
+
   if (error || !user) {
     return (
       <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 text-red-600 dark:text-red-400">
@@ -51,7 +61,7 @@ export default function ProfileHeader({ userId }: ProfileHeaderProps) {
       </div>
     );
   }
-  
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
       <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
@@ -69,12 +79,12 @@ export default function ProfileHeader({ userId }: ProfileHeaderProps) {
               </div>
             )}
           </div>
-          
+
           {user.emotionalProfile && (
-            <div 
+            <div
               className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full border-2 border-white dark:border-gray-800 flex items-center justify-center"
-              style={{ 
-                backgroundColor: getEmotionColor(user.emotionalProfile.dominantEmotions[0] as any) 
+              style={{
+                backgroundColor: getEmotionColor(user.emotionalProfile.dominantEmotions[0] as any),
               }}
               title={`Dominant emotion: ${user.emotionalProfile.dominantEmotions[0]}`}
             >
@@ -86,15 +96,15 @@ export default function ProfileHeader({ userId }: ProfileHeaderProps) {
             </div>
           )}
         </div>
-        
+
         <div className="flex-1 text-center sm:text-left">
           <h1 className="text-2xl font-bold">{user.displayName}</h1>
           <p className="text-gray-500 dark:text-gray-400 mb-3">@{user.username}</p>
-          
+
           {user.bio && (
             <p className="text-gray-700 dark:text-gray-300 mb-4">{user.bio}</p>
           )}
-          
+
           <div className="flex flex-wrap gap-4 justify-center sm:justify-start mb-4">
             <div>
               <span className="font-bold">{user.followersCount}</span>
@@ -111,7 +121,7 @@ export default function ProfileHeader({ userId }: ProfileHeaderProps) {
               </div>
             )}
           </div>
-          
+
           {!isCurrentUser && (
             <button
               onClick={handleFollowClick}
