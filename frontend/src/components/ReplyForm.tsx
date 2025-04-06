@@ -44,8 +44,11 @@ export default function ReplyForm({ postId }: ReplyFormProps) {
             className="w-full p-3 border border-gray-300 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-white resize-none"
             rows={3}
             disabled={isLoading}
+            maxLength={140} 
           />
-
+          <div className="text-right text-sm text-gray-400 mt-1">
+            {content.length}/140
+          </div>
           {error && (
             <p className="mt-2 text-red-500 text-sm">
               返信の送信中にエラーが発生しました。再度お試しください。
