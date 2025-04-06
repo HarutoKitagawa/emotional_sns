@@ -6,11 +6,13 @@ import { useFeedPosts } from '../features/post/hooks';
 import { useAuth } from '../features/auth/hooks';
 
 export default function NewPostButton() {
+  const { user } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [content, setContent] = useState('');
   const { createPost, isLoading, error } = useCreatePost();
-  const { user } = useAuth();
   const { mutate: refreshFeed } = useFeedPosts();
+
+  if (!user) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
