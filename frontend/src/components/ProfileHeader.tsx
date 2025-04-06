@@ -9,7 +9,7 @@ interface ProfileHeaderProps {
 }
 
 export default function ProfileHeader({ userId }: ProfileHeaderProps) {
-  const { data: user, error, isLoading } = useUser(userId);
+  const { data: user, error, isLoading, mutate: mutateUser } = useUser(userId);
   const { user: currentUser } = useAuth(); // ← ここでログインユーザーを取得！
 
   const isCurrentUser = currentUser?.id === userId;
@@ -28,6 +28,9 @@ export default function ProfileHeader({ userId }: ProfileHeaderProps) {
       } else {
         await follow();
       }
+      // フォロー／アンフォロー後、ユーザー情報の再取得
+      mutateUser();
+
       console.log(`${isFollowing ? 'Unfollowed' : 'Followed'} user: ${userId}`);
     } catch (error) {
       console.error('Error following/unfollowing user:', error);
